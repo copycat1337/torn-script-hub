@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080d16">
+  <meta name="description" content="c0pyc4t Scrips — a hub of Torn City scripts and tools: CAT Dibs, target calling, faction coordination, and more.">
+  <title>c0pyc4t Scrips · Script Hub</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080d16;
+      --panel: #111a28;
+      --panel-2: #0d1522;
+      --line: #24344a;
+      --text: #e8f0fb;
+      --muted: #9aabc1;
+      --blue: #19a7ff;
+      --blue-2: #0878d1;
+      --radius: 14px;
+      --card-pad: 20px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: radial-gradient(ellipse at 50% -15%, #102b49 0, var(--bg) 48rem);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { color: #75caff; }
+
+    .wrap {
+      width: min(1200px, calc(100% - 36px));
+      margin: auto;
+    }
+
+    /* ---------- Header ---------- */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: rgb(8 13 22 / 92%);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .nav {
+      min-height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand {
+      color: var(--text);
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -.04em;
+    }
+
+    .brand span, .accent { color: var(--blue); }
+
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+    }
+
+    nav a { color: #c6d3e4; font-size: .92rem; }
+
+    /* ---------- Hero ---------- */
+    .hero {
+      padding: 56px 0 40px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(110deg, rgb(10 34 59 / 55%), transparent 65%);
+    }
+
+    .eyebrow {
+      color: var(--blue);
+      text-transform: uppercase;
+      letter-spacing: .16em;
+      font-size: .75rem;
+      font-weight: 800;
+    }
+
+    h1 {
+      margin: 6px 0 8px;
+      font-size: clamp(2.2rem, 6vw, 3.8rem);
+      line-height: 1.05;
+      letter-spacing: -.055em;
+    }
+
+    .hero p {
+      max-width: 680px;
+      color: var(--muted);
+      font-size: clamp(1rem, 1.8vw, 1.2rem);
+      margin: 0 0 18px;
+    }
+
+    /* ---------- Card grid ---------- */
+    main { padding: 36px 0 60px; }
+
+    .script-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .script-card {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: linear-gradient(145deg, var(--panel), var(--panel-2));
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 12px 30px rgb(0 0 0 / 15%);
+      transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+    }
+
+    .script-card:hover {
+      border-color: #2f4a6b;
+      transform: translateY(-2px);
+      box-shadow: 0 18px 40px rgb(0 0 0 / 25%);
+    }
+
+    .script-thumb {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #070c14;
+      border-bottom: 1px solid var(--line);
+      overflow: hidden;
+      aspect-ratio: 16 / 9;
+      /* keep images from overflowing */
+      min-height: 0;
+    }
+
+    .script-thumb img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top center;
+      transition: transform .25s ease;
+    }
+
+    .script-card:hover .script-thumb img {
+      transform: scale(1.025);
+    }
+
+    /* for cards without image – dashed placeholder */
+    .script-thumb.placeholder {
+      background: repeating-linear-gradient(
+        45deg,
+        #0a121d,
+        #0a121d 10px,
+        #0d1624 10px,
+        #0d1624 20px
+      );
+      color: var(--muted);
+      font-size: .85rem;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      font-weight: 600;
+      gap: 8px;
+      flex-direction: column;
+      border-bottom: 1px dashed var(--line);
+    }
+
+    .script-thumb.placeholder svg {
+      opacity: .45;
+    }
+
+    .script-body {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      padding: var(--card-pad);
+      gap: 6px;
+    }
+
+    .script-body h2 {
+      margin: 0;
+      font-size: 1.2rem;
+      letter-spacing: -.02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .script-body h2::before {
+      content: "//";
+      color: var(--blue);
+      font-family: ui-monospace, monospace;
+      font-weight: 400;
+      font-size: .9em;
+    }
+
+    .script-desc {
+      margin: 0;
+      color: var(--muted);
+      font-size: .94rem;
+      line-height: 1.55;
+    }
+
+    .script-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      margin-top: auto;
+      padding-top: 14px;
+      color: #94a6be;
+      font-size: .8rem;
+    }
+
+    .script-meta span {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .script-meta .tag {
+      background: #172438;
+      border: 1px solid var(--line);
+      border-radius: 100px;
+      padding: 2px 10px;
+      font-size: .78rem;
+      color: #b8c9de;
+    }
+
+    .script-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      color: var(--text);
+      background: #172337;
+      font-weight: 600;
+      font-size: .88rem;
+      transition: background .15s ease, border-color .15s ease;
+    }
+
+    .btn:hover {
+      background: #1e2d44;
+      border-color: #2f4a6b;
+      color: #fff;
+    }
+
+    .btn.primary {
+      background: var(--blue-2);
+      border-color: var(--blue);
+      color: white;
+    }
+
+    .btn.primary:hover {
+      background: #0a8ae8;
+      border-color: #55c2ff;
+    }
+
+    /* ---------- Footer ---------- */
+    footer {
+      border-top: 1px solid var(--line);
+      background: #070b12;
+      padding: 24px 0;
+      color: var(--muted);
+    }
+
+    .foot {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .foot strong { color: var(--text); }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 760px) {
+      .nav {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 14px 0;
+      }
+
+      nav { gap: 14px; }
+      .hero { padding: 44px 0 34px; }
+
+      .script-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .script-thumb {
+        aspect-ratio: 2 / 1;
+      }
+    }
+
+    @media (max-width: 450px) {
+      .script-body { padding: 16px; }
+      .script-actions .btn { flex: 1; }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="wrap nav">
+      <a class="brand" href="#home">c0pyc4t <span>Scrips</span></a>
+      <nav aria-label="Main navigation">
+        <a href="#home">Home</a>
+        <a href="#scripts">Scripts</a>
+        <a href="#about">About</a>
+        <a href="https://github.com/copycat1337" target="_blank" rel="noopener">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero" id="home">
+    <div class="wrap">
+      <div class="eyebrow">Torn City scripts &amp; tools</div>
+      <h1>c0pyc4t <span class="accent">Scrips</span></h1>
+      <p>A growing collection of independent Torn City userscripts and utilities. Browse the hub, pick a tool, and get organised.</p>
+    </div>
+  </section>
+
+  <main class="wrap">
+    <!-- ============================================================
+         SCRIPT CARD GRID
+         Each card = one script. Copy a whole <article> block to add
+         a new entry. Replace title, description, image, links, tags.
+         ============================================================ -->
+    <section id="scripts">
+      <div class="script-grid">
+
+        <!-- =====================================================
+             CARD 1 — CAT Dibs
+             ===================================================== -->
+        <article class="script-card" id="cat-dibs">
+          <div class="script-thumb">
+            <!-- Replace with real screenshot path, e.g. pictures/cat-dibs.png -->
+            <img src="https://copycat1337.github.io/torn-dibs/pictures/screenshot-2.png"
+                 alt="CAT Dibs userscript preview"
+                 loading="lazy"
+                 onerror="this.parentElement.classList.add('placeholder'); this.style.display='none';">
+          </div>
+          <div class="script-body">
+            <h2>CAT Dibs</h2>
+            <p class="script-desc">Faction war target-calling. Claim targets, see who called whom, and keep ranked-war attacks coordinated.</p>
+            <div class="script-meta">
+              <span class="tag">v3.3.1</span>
+              <span class="tag">userscript</span>
+              <span>👤 c0pyc4t &amp; Gezkeni</span>
+              <span>🗓 2026-11-16</span>
+            </div>
+            <div class="script-actions">
+              <a class="btn primary" href="https://github.com/copycat1337/torn-dibs" target="_blank" rel="noopener">GitHub</a>
+              <a class="btn primary" href="https://copycat1337.github.io/torn-dibs/" target="_blank" rel="noopener">Website</a>
+            </div>
+          </div>
+        </article>
+
+        <!-- =====================================================
+             CARD 2 — (placeholder / next script)
+             Copy this block, rename id, swap content, update links.
+             ===================================================== -->
+        <article class="script-card" id="script-two">
+          <div class="script-thumb">
+            <img src="https://copycat1337.github.io/torn_inventory_display-case_tracker/pictures/screenshot-1.png"
+                 alt="Second script preview"
+                 loading="lazy"
+                 onerror="this.parentElement.classList.add('placeholder'); this.style.display='none';">
+          </div>
+          <div class="script-body">
+            <h2>Item Tracekr</h2>
+            <p class="script-desc">Inventory & Displaycase tracker, Shows OC & Crime tools catagory view.</p>
+            <div class="script-meta">
+              <span class="tag">v6.1</span>
+              <span class="tag">userscript</span>
+              <span>👤 c0pyc4t</span>
+              <span>🗓 2026-11-15</span>
+            </div>
+            <div class="script-actions">
+              <a class="btn primary" href="https://github.com/copycat1337/torn_inventory_display-case_tracker" target="_blank" rel="noopener">GitHub</a>
+              <a class="btn primary" href="https://copycat1337.github.io/torn_inventory_display-case_tracker/" target="_blank" rel="noopener">Website</a>
+            </div>
+          </div>
+        </article>
+
+        <!-- =====================================================
+             CARD 3 — (another placeholder)
+             Same pattern: duplicate, edit.
+             ===================================================== -->
+        <article class="script-card" id="script-three">
+          <div class="script-thumb">
+            <img src="pictures/script-three.png"
+                 alt="Third script preview"
+                 loading="lazy"
+                 onerror="this.parentElement.classList.add('placeholder'); this.style.display='none';">
+          </div>
+          <div class="script-body">
+            <h2>Script Three</h2>
+            <p class="script-desc">A third tool for the hub. Describe its purpose, key features, or what problem it solves.</p>
+            <div class="script-meta">
+              <span class="tag">v0.9.0</span>
+              <span class="tag">tool</span>
+              <span>👤 c0pyc4t</span>
+              <span>🗓 2026-11-01</span>
+            </div>
+            <div class="script-actions">
+              <a class="btn primary" href="https://github.com/copycat1337/torn-dibs" target="_blank" rel="noopener">GitHub</a>
+              <a class="btn primary" href="https://github.com/copycat1337/torn-dibs" target="_blank" rel="noopener">Website</a>
+            </div>
+          </div>
+        </article>
+
+        <!-- =====================================================
+             END OF CARDS
+             ===================================================== -->
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         ABOUT / CONTACT (optional hub footer section)
+         ============================================================ -->
+    <section id="about" style="margin-top: 48px;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px;">
+        <div style="background: linear-gradient(145deg, var(--panel), var(--panel-2)); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px;">
+          <h2 style="margin: 0 0 10px; font-size: 1.15rem; letter-spacing: -.02em;">// About this hub</h2>
+          <p class="muted" style="margin: 0; font-size: .93rem;">c0pyc4t Scrips is a personal collection of Torn City userscripts and tools. Each card links to its own project and documentation. Not affiliated with Torn City.</p>
+        </div>
+        <div style="background: linear-gradient(145deg, var(--panel), var(--panel-2)); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px;">
+          <h2 style="margin: 0 0 10px; font-size: 1.15rem; letter-spacing: -.02em;">// Contact</h2>
+          <p class="muted" style="margin: 0 0 6px; font-size: .93rem;">Email: <a href="mailto:copycat1337x@protonmail.com">copycat1337x@protonmail.com</a></p>
+          <p class="muted" style="margin: 0; font-size: .93rem;">GitHub: <a href="https://github.com/copycat1337" target="_blank" rel="noopener">github.com/copycat1337</a></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Hidden install anchor for CAT Dibs quick link -->
+    <div id="install-cat-dibs" style="position: relative; top: -80px;"></div>
+  </main>
+
+  <footer>
+    <div class="wrap foot">
+      <div><strong>c0pyc4t <span class="accent">Scrips</span></strong><br><small>Independent scripts and tools for Torn City.</small></div>
+      <small>Not affiliated with Torn City. © <span id="year">2026</span> c0pyc4t.</small>
+      <a href="https://github.com/copycat1337" target="_blank" rel="noopener">GitHub profile ↗</a>
+    </div>
+  </footer>
+
+  <script>
+    // auto year
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
