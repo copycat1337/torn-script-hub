@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         CAT Dibs (Torn PDA)
 // @namespace    https://dibs.ghostprotocol.cyou/
-// @version      3.4.1-pda
-// @description  War-aware faction calling; release only after confirmed combat hospitalizations. Torn PDA friendly with on-screen API key entry.
+// @version      3.5.9-pda
+// @description  War-aware faction calling; release only after confirmed combat hospitalizations. Torn PDA friendly: dedicated Call column, on-screen API key entry, touch-optimised.
 // @author       c0pyc4t [4039125] & Gezkeni [4501153] (PDA port)
 // @match        https://www.torn.com/*
 // @grant        GM_xmlhttpRequest
@@ -44,6 +44,28 @@
     window.location.reload();
   };
 
+  /**
+   * Detect Torn PDA (Android/iOS WebView wrapper).
+   * Torn PDA advertises itself via a distinctive User-Agent substring.
+   * Used to tune touch targets and observer cadence.
+   */
+  const isPDA = (() => {
+    const ua = (typeof navigator !== "undefined" ? navigator.userAgent || "" : "");
+    return /Torn\s?PDA|TornPDA|PDA\/\d/i.test(ua) || (ua.includes("wv") && /Android/i.test(ua) && /Torn/i.test(document.referrer || ""));
+  })();
+
+  /**
+   * Detect Torn's actual dark mode.
+   * IMPORTANT: do NOT use [class*="dark"] or [class*="war"] — those substring
+   * selectors match unrelated Torn classes (e.g. war_overview) and force dark
+   * styling on the light theme. Only target real dark-mode root classes.
+   */
+  function isTornDarkMode() {
+    return !!(document.querySelector(
+      "html.dark-mode, body.dark-mode, body.dark-mode-lt, html[data-theme='dark'], body[data-theme='dark']"
+    ));
+  }
+
   function http(method, path, body, token) {
     return new Promise(resolve => {
       const headers = { "Content-Type": "application/json" };
@@ -73,7 +95,7 @@
     return data;
   }
 
-  // ---- On-page API key entry (Torn PDA friendly) ----
+  // ---- On-page API key entry ----
   let overlayEl = null;
 
   function removeOverlay() {
@@ -89,6 +111,7 @@
       position:fixed;inset:0;z-index:2147483647;
       background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;
       font-family:Arial,sans-serif;
+      -webkit-tap-highlight-color:transparent;
     `;
 
     const box = document.createElement("div");
@@ -109,8 +132,9 @@
     input.spellcheck = false;
     input.style.cssText = `
       width:100%;box-sizing:border-box;padding:10px;border-radius:6px;
-      border:1px solid #555;background:#111;color:#eee;font-size:14px;
+      border:1px solid #555;background:#111;color:#eee;font-size:16px;
     `;
+    // font-size 16px prevents iOS zoom-on-focus inside PDA WebView
 
     const statusLine = document.createElement("div");
     statusLine.style.cssText = "margin-top:8px;font-size:12px;color:#f0ad4e;min-height:16px;";
@@ -122,16 +146,18 @@
     saveBtn.type = "button";
     saveBtn.textContent = "Save & Login";
     saveBtn.style.cssText = `
-      flex:1;padding:10px;border-radius:6px;border:1px solid #2a2a2a;cursor:pointer;
+      flex:1;padding:12px;border-radius:6px;border:1px solid #2a2a2a;cursor:pointer;
       font-weight:700;color:#fff;background:linear-gradient(180deg,#4a7a00,#2e4d00);
+      touch-action:manipulation;-webkit-tap-highlight-color:transparent;
     `;
 
     const cancelBtn = document.createElement("button");
     cancelBtn.type = "button";
     cancelBtn.textContent = "Cancel";
     cancelBtn.style.cssText = `
-      flex:1;padding:10px;border-radius:6px;border:1px solid #2a2a2a;cursor:pointer;
+      flex:1;padding:12px;border-radius:6px;border:1px solid #2a2a2a;cursor:pointer;
       font-weight:700;color:#eee;background:linear-gradient(180deg,#333,#1a1a1a);
+      touch-action:manipulation;-webkit-tap-highlight-color:transparent;
     `;
 
     saveBtn.onclick = async () => {
@@ -169,7 +195,7 @@
     setTimeout(() => input.focus(), 50);
   }
 
-  // Floating launcher button — only shown when not logged in.
+  // Floating launcher button (only shown when not logged in)
   let launcherEl = null;
   function updateLauncher() {
     const loggedIn = !!getToken();
@@ -185,25 +211,27 @@
     launcherEl.type = "button";
     launcherEl.textContent = "CAT";
     launcherEl.title = "Set Torn API Key for CAT Lite";
+    // 56px so it clears Android's 48dp minimum touch target inside PDA.
     launcherEl.style.cssText = `
       position:fixed;right:14px;bottom:80px;z-index:2147483646;
-      width:52px;height:52px;border-radius:50%;
+      width:56px;height:56px;border-radius:50%;
       border:1px solid #2a2a2a;cursor:pointer;
       font:700 13px Arial,sans-serif;color:#fff;
       background:linear-gradient(180deg,#4a7a00,#2e4d00);
       box-shadow:0 4px 14px #000;text-shadow:0 1px 0 #000;
+      touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+      user-select:none;-webkit-user-select:none;
     `;
     launcherEl.onclick = showKeyOverlay;
     document.body.appendChild(launcherEl);
   }
 
-  // Keep menu commands too (works in PDA menus where available).
   GM_registerMenuCommand("1. Set Torn API Key", showKeyOverlay);
   GM_registerMenuCommand("2. Disconnect / Wipe Account", () => {
     if (confirm("Are you sure you want to clear your CAT login?")) wipeStorage();
   });
   GM_registerMenuCommand("3. Check Login Status", () => {
-    alert(`CAT Status:\nPlayer: ${getPlayer()}\nID: ${getPlayerId()}\nMy faction: ${getFaction()}\nWar opponent: ${opponentFactionName || "None detected"}${opponentFactionId ? " (" + opponentFactionId + ")" : ""}\nToken: ${getToken() ? "Active" : "Missing"}`);
+    alert(`CAT Status:\nPlayer: ${getPlayer()}\nID: ${getPlayerId()}\nMy faction: ${getFaction()}\nWar opponent: ${opponentFactionName || "None detected"}${opponentFactionId ? " (" + opponentFactionId + ")" : ""}\nToken: ${getToken() ? "Active" : "Missing"}\nPDA: ${isPDA ? "Yes" : "No"}\nDark mode: ${isTornDarkMode() ? "Yes" : "No"}`);
   });
 
   // ---- Core logic ----
@@ -220,55 +248,240 @@
   const pendingTargets = new Set();
   let paintObserver = null;
 
+  function injectStyles() {
+    if (document.getElementById("catlite-styles")) return;
+    const style = document.createElement("style");
+    style.id = "catlite-styles";
+
+    // Touch sizing: bigger on PDA, comfortable on desktop.
+    // touch-action: manipulation kills the 300ms tap delay on mobile WebViews.
+    const btnHeight = isPDA ? "26px" : "22px";
+    const btnFont   = isPDA ? "bold 12px" : "bold 11px";
+    const btnMinW   = isPDA ? "58px" : "50px";
+    const colWidth  = isPDA ? "70px" : "60px";
+
+    style.textContent = `
+      .catlite-wrapper {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        line-height: 0 !important;
+      }
+
+      .catlite-btn {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-sizing: border-box !important;
+        padding: 0 8px !important;
+        min-width: ${btnMinW} !important;
+        height: ${btnHeight} !important;
+        line-height: ${btnHeight} !important;
+        font: ${btnFont} Arial, sans-serif !important;
+        cursor: pointer !important;
+        border-radius: 3px !important;
+        border: 1px solid #5a5a5a !important;
+        /* Classic light theme: dark-grey button is far more legible on light
+           backgrounds than a near-white one. */
+        background: linear-gradient(180deg, #6a6a6a, #3a3a3a) !important;
+        color: #fff !important;
+        text-shadow: 0 1px 0 #000 !important;
+        white-space: nowrap !important;
+        pointer-events: auto !important;
+        touch-action: manipulation !important;
+        -webkit-tap-highlight-color: transparent !important;
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        box-shadow: 0 1px 0 rgba(0,0,0,0.3) !important;
+      }
+      .catlite-btn:hover:not(:disabled) {
+        filter: brightness(1.12) !important;
+      }
+
+      /* Real Torn dark mode only — do NOT use [class*="dark"] or [class*="war"]
+         (they catch unrelated Torn classes and break the light theme). */
+      html.dark-mode .catlite-btn,
+      body.dark-mode .catlite-btn,
+      body.dark-mode-lt .catlite-btn,
+      html[data-theme="dark"] .catlite-btn,
+      body[data-theme="dark"] .catlite-btn {
+        border: 1px solid #111 !important;
+        background: linear-gradient(180deg, #4a4a4a, #222) !important;
+        color: #f0f0f0 !important;
+        text-shadow: 0 1px 0 #000 !important;
+      }
+
+      .catlite-btn[data-mine="true"] {
+        background: linear-gradient(180deg, #4a7a00, #2e4d00) !important;
+        color: #fff !important;
+        border-color: #1c2f00 !important;
+        text-shadow: 0 1px 0 #000 !important;
+      }
+      .catlite-btn[data-other="true"] {
+        background: linear-gradient(180deg, #7a2200, #4d1500) !important;
+        color: #fff !important;
+        border-color: #2a0a00 !important;
+        text-shadow: 0 1px 0 #000 !important;
+      }
+      .catlite-btn:disabled {
+        opacity: 0.7 !important;
+        cursor: wait !important;
+      }
+
+      /* Custom Call column (old/classic theme list layout) */
+      .catlite-custom-td {
+        vertical-align: middle !important;
+        text-align: center !important;
+        padding: 0 5px !important;
+        width: ${colWidth} !important;
+        min-width: ${colWidth} !important;
+        box-sizing: border-box !important;
+        /* Ensure the cell stays visible and doesn't get squashed by flex siblings */
+        flex: 0 0 ${colWidth} !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+      .catlite-custom-th {
+        width: ${colWidth} !important;
+        min-width: ${colWidth} !important;
+        flex: 0 0 ${colWidth} !important;
+        text-align: center !important;
+        box-sizing: border-box !important;
+      }
+
+      /* On very narrow PDA viewports, shrink the column slightly so we don't
+         push the Attack button off-screen. */
+      @media (max-width: 480px) {
+        .catlite-custom-td, .catlite-custom-th {
+          width: 56px !important;
+          min-width: 56px !important;
+          flex: 0 0 56px !important;
+          padding: 0 3px !important;
+        }
+        .catlite-btn {
+          min-width: 52px !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   function paintAll() {
-    const rows = document.querySelectorAll("li.table-row, .table-body li, .members-list li");
-
-    rows.forEach(li => {
-      const a = li.querySelector('a[href*="XID="]');
+    // 1. New Theme (Table Layout) - inject into the name cell, keep layout
+    const newThemeRows = document.querySelectorAll(
+      'tr[data-warhelper-user-id], tr.members-row, tr[data-user-id]'
+    );
+    newThemeRows.forEach(tr => {
+      const a = tr.querySelector('a[href*="XID="]');
       if (!a) return;
+      const memberId = a.getAttribute("href")?.match(/XID=(\d+)/)?.[1];
+      if (!memberId) return;
 
-      const idMatch = a.getAttribute("href")?.match(/XID=(\d+)/);
-      if (!idMatch) return;
-      const memberId = idMatch[1];
+      const targetContainer =
+        tr.querySelector('.__warhelper_war_overview_name-content') ||
+        tr.querySelector('td.__warhelper_war_overview_name') ||
+        tr.querySelector('.member-name, .name, td.name');
+      if (!targetContainer) return;
 
-      // Create a dedicated container for our button so React doesn't break the layout
-      let container = li.querySelector(".catlite-container");
-      if (!container) {
-        container = document.createElement("div");
-        container.className = "catlite-container";
-        container.style.cssText = "display:inline-flex; align-items:center; margin-left: 10px;";
-        // Append to row
-        li.appendChild(container);
+      let wrapper = targetContainer.querySelector(":scope > .catlite-wrapper");
+      if (!wrapper) {
+        wrapper = document.createElement("span");
+        wrapper.className = "catlite-wrapper";
+        wrapper.style.marginLeft = "8px";
+        targetContainer.appendChild(wrapper);
+      }
+      injectButton(wrapper, memberId, a);
+    });
+
+    // 2. Old Theme (List Layout) - inject a whole new column
+    const oldThemeRows = document.querySelectorAll(
+      'li.table-row, .table-body li, .members-list li, ul.members-list > li'
+    );
+    if (oldThemeRows.length > 0) {
+      // Add Header Column if missing — try several known header containers
+      // (desktop classic + PDA mobile variants)
+      const headerCandidates = [
+        '.table-header',
+        '.members-list .table-header',
+        '.table-head',
+        'ul.table-header',
+        '.members-table-head',
+        '.content-scroll .table-header'
+      ];
+      for (const sel of headerCandidates) {
+        const headerRow = document.querySelector(sel);
+        if (headerRow && !headerRow.querySelector('.catlite-custom-th')) {
+          const th = document.createElement('div');
+          th.className = 'table-cell catlite-custom-th';
+          th.textContent = 'Call';
+          headerRow.appendChild(th);
+          break; // only inject into the first matching header
+        }
       }
 
-      let btn = container.querySelector(".catlite-btn");
-      if (!btn) {
-        btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "catlite-btn";
-        btn.style.cssText = `
-          display:inline-flex !important;align-items:center !important;justify-content:center !important;
-          margin-left:4px !important;padding:0 6px !important;height:22px !important;
-          font:600 11px Arial,sans-serif !important;cursor:pointer !important;border-radius:3px !important;
-          border:1px solid #2a2a2a !important;background:linear-gradient(180deg,#333,#1a1a1a) !important;
-          color:#eee !important;text-shadow:0 1px 0 #000 !important;vertical-align:middle !important;
-          z-index: 99 !important; pointer-events: auto !important;
-        `;
-        container.appendChild(btn);
-      }
+      oldThemeRows.forEach(li => {
+        const a = li.querySelector('a[href*="XID="]');
+        if (!a) return;
+        const memberId = a.getAttribute("href")?.match(/XID=(\d+)/)?.[1];
+        if (!memberId) return;
 
-      const call = calls.get(memberId);
-      if (pendingTargets.has(memberId)) {
-        btn.textContent = "...";
-        btn.disabled = true;
-        btn.onclick = null;
-        return;
-      }
-      btn.disabled = false;
+        // Skip if we already injected the cell
+        let targetCell = li.querySelector(':scope > .catlite-custom-td, .catlite-custom-td');
+        if (!targetCell) {
+          targetCell = document.createElement('div');
+          // Preserve Torn's table-cell class so it inherits the row's flex layout
+          targetCell.className = 'table-cell catlite-custom-td';
 
-      if (!call) {
-        btn.style.background = "linear-gradient(180deg,#333,#1a1a1a)";
-        btn.style.color = "#eee";
+          // Append after the last existing cell so we don't displace Attack.
+          // On PDA the last child may be a status / action cell; appending
+          // after it keeps the new column on the right edge of the row.
+          const lastCell = li.querySelector('.table-cell:last-of-type') ||
+                           li.querySelector('.table-cell:last-child') ||
+                           li.lastElementChild;
+          if (lastCell && lastCell !== targetCell) {
+            lastCell.parentNode.insertBefore(targetCell, lastCell.nextSibling);
+          } else {
+            li.appendChild(targetCell);
+          }
+        }
+
+        let wrapper = targetCell.querySelector(":scope > .catlite-wrapper");
+        if (!wrapper) {
+          wrapper = document.createElement("span");
+          wrapper.className = "catlite-wrapper";
+          targetCell.appendChild(wrapper);
+        }
+
+        injectButton(wrapper, memberId, a);
+      });
+    }
+  }
+
+  // Helper: button logic shared between themes
+  function injectButton(wrapper, memberId, a) {
+    let btn = wrapper.querySelector(".catlite-btn");
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "catlite-btn";
+      wrapper.appendChild(btn);
+    }
+
+    const call = calls.get(memberId);
+    if (pendingTargets.has(memberId)) {
+      if (btn.textContent !== "...") btn.textContent = "...";
+      btn.disabled = true;
+      btn.onclick = null;
+      return;
+    }
+    btn.disabled = false;
+
+    if (!call) {
+      if (btn.dataset.state !== "call") {
+        btn.dataset.state = "call";
+        btn.dataset.mine = "false";
+        btn.dataset.other = "false";
         btn.textContent = "CALL";
         btn.onclick = async (e) => {
           e.preventDefault();
@@ -285,7 +498,7 @@
               calls.set(memberId, {
                 id: res.data.data.id,
                 callerId: String(getPlayerId()),
-                callerName: getPlayer(), // Instantly show your own name
+                callerName: getPlayer(),
                 isMine: true
               });
               const snapshot = statusCache[memberId];
@@ -300,12 +513,18 @@
             paintAll();
           }
         };
-      } else {
-        const callerName = String(call.callerName || "Unknown");
-        btn.textContent = callerName.length > 7 ? callerName.substring(0, 6) + "..." : callerName;
-        btn.style.color = "#fff";
+      }
+    } else {
+      const callerName = String(call.callerName || "Unknown");
+      const displayName = callerName.length > 8 ? callerName.substring(0, 7) + "…" : callerName;
+
+      if (btn.dataset.state !== displayName) {
+        btn.dataset.state = displayName;
+        btn.textContent = displayName;
+        btn.dataset.mine = call.isMine ? "true" : "false";
+        btn.dataset.other = !call.isMine ? "true" : "false";
+
         if (call.isMine) {
-          btn.style.background = "linear-gradient(180deg,#4a7a00,#2e4d00)";
           btn.onclick = async (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -327,18 +546,19 @@
             }
           };
         } else {
-          btn.style.background = "linear-gradient(180deg,#7a2200,#4d1500)";
           btn.onclick = null;
         }
       }
-    });
+    }
   }
 
   function startPaintObserver() {
     if (paintObserver) return;
+    // Debounce more aggressively on PDA to save battery and reduce jank.
+    const debounceMs = isPDA ? 450 : 300;
     paintObserver = new MutationObserver(() => {
       if (startPaintObserver._t) clearTimeout(startPaintObserver._t);
-      startPaintObserver._t = setTimeout(paintAll, 150);
+      startPaintObserver._t = setTimeout(paintAll, debounceMs);
     });
     paintObserver.observe(document.body, { childList: true, subtree: true });
   }
@@ -521,6 +741,7 @@
   }
 
   function boot() {
+    injectStyles();
     updateLauncher();
     setInterval(updateLauncher, 5000);
 
