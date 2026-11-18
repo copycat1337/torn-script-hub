@@ -275,6 +275,105 @@
       border-color: #55c2ff;
     }
 
+
+    /* ---------- Userscript directory ---------- */
+    .userscript-section {
+      margin-top: 48px;
+      padding-top: 30px;
+      border-top: 1px solid var(--line);
+    }
+
+    .userscript-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .userscript-heading h2 {
+      margin: 0;
+      font-size: clamp(1.45rem, 3vw, 1.9rem);
+      letter-spacing: -.035em;
+    }
+
+    .userscript-heading p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: .94rem;
+    }
+
+    .userscript-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(145deg, var(--panel), var(--panel-2));
+    }
+
+    .userscript-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 600px;
+      text-align: left;
+    }
+
+    .userscript-table th,
+    .userscript-table td {
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+
+    .userscript-table th {
+      color: #b8c9de;
+      background: #0c1522;
+      font-size: .78rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .userscript-table td {
+      color: var(--muted);
+      font-size: .91rem;
+    }
+
+    .userscript-table tr:last-child td { border-bottom: 0; }
+
+    .userscript-table td:first-child {
+      min-width: 210px;
+      font-weight: 700;
+    }
+
+    .userscript-table td:first-child a {
+      color: var(--text);
+    }
+
+    .userscript-table td:first-child a:hover {
+      color: #75caff;
+      text-decoration: underline;
+    }
+
+    .api-tag {
+      display: inline-block;
+      white-space: nowrap;
+      padding: 3px 10px;
+      border: 1px solid var(--line);
+      border-radius: 100px;
+      background: #172438;
+      color: #c6d8ec;
+      font-size: .78rem;
+      font-weight: 600;
+    }
+
+    .api-tag.no { color: #a8dfbd; }
+    .api-tag.external { color: #c9b7ff; }
+
+    @media (max-width: 600px) {
+      .userscript-heading { align-items: flex-start; }
+      .userscript-heading .btn { width: 100%; }
+    }
+
     /* ---------- Footer ---------- */
     footer {
       border-top: 1px solid var(--line);
@@ -326,7 +425,8 @@
       <a class="brand" href="#home">c0pyc4t <span>Scrips</span></a>
       <nav aria-label="Main navigation">
         <a href="#home">Home</a>
-        <a href="#scripts">Scripts</a>
+        <a href="#scripts">Projects</a>
+        <a href="#userscripts">Userscripts</a>
         <a href="#about">About</a>
         <a href="https://github.com/copycat1337" target="_blank" rel="noopener">GitHub ↗</a>
       </nav>
@@ -435,6 +535,125 @@
              END OF CARDS
              ===================================================== -->
 
+      </div>
+    </section>
+
+
+    <!-- ============================================================
+         USERSCRIPT DIRECTORY
+         Script names open the raw files for userscript installation.
+         ============================================================ -->
+    <section class="userscript-section" id="userscripts">
+      <div class="userscript-heading">
+        <div>
+          <h2>Userscript <span class="accent">Collection</span></h2>
+          <p>Browse and install standalone Torn City userscripts.</p>
+        </div>
+        <a class="btn primary" href="https://github.com/copycat1337/torn-script-hub" target="_blank" rel="noopener">Script Hub Repository ↗</a>
+      </div>
+
+      <div class="userscript-table-wrap">
+        <table class="userscript-table">
+          <thead>
+            <tr>
+              <th scope="col">Script</th>
+              <th scope="col">Description</th>
+              <th scope="col">API</th>
+            </tr>
+          </thead>
+          <tbody>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/Chain_Watcher.js" target="_blank" rel="noopener">Chain Watcher</a></td>
+            <td>Monitors both faction chains, highlights activity, and alerts with a sound at 60 seconds.</td>
+            <td><span class="api-tag">Yes</span></td>
+          </tr>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/Cortex_RW_Auction%20Insights-4.29.2.js" target="_blank" rel="noopener">Cortex RW Auction Insights</a></td>
+            <td>Checks Ranked War auctions and helps evaluate whether item prices are fair.</td>
+            <td><span class="api-tag">Check</span></td>
+          </tr>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/Crack_Commander.js" target="_blank" rel="noopener">Crack Commander</a></td>
+            <td>Helps crack passwords and preview potential rewards.</td>
+            <td><span class="api-tag">Check</span></td>
+          </tr>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/Custom_Lists.js" target="_blank" rel="noopener">Custom Lists</a></td>
+            <td>Create custom Friends, Enemies, and Hitlist lists without player-status checks.</td>
+            <td><span class="api-tag no">No</span></td>
+          </tr>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/Director_View.js" target="_blank" rel="noopener">Director View</a></td>
+            <td>Company manager with training and cost-adviser features.</td>
+            <td><span class="api-tag">Check</span></td>
+          </tr>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/Egg_Finder-1.1.0.user.js" target="_blank" rel="noopener">Egg Finder 1.1.0</a></td>
+            <td>Helps locate Easter eggs during the event.</td>
+            <td><span class="api-tag">Check</span></td>
+          </tr>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/Faction_Navbar.js" target="_blank" rel="noopener">Faction Navbar</a></td>
+            <td>Faction navigation enhancement.</td>
+            <td><span class="api-tag">Check</span></td>
+          </tr>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/FF_Scouter_V2-3.3.user.js" target="_blank" rel="noopener">FF Scouter V2 3.3</a></td>
+            <td>Displays player statistics using FF Scouter data.</td>
+            <td><span class="api-tag external">External</span></td>
+          </tr>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/Heasley's_Egg_Navigator-1.6.2.user.js" target="_blank" rel="noopener">Heasley's Egg Navigator 1.6.2</a></td>
+            <td>Helps locate Easter eggs during the event.</td>
+            <td><span class="api-tag">Check</span></td>
+          </tr>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/Pickpocket_Helper.js" target="_blank" rel="noopener">Pickpocket Helper</a></td>
+            <td>Pickpocket crime adviser with score tracking and rare-item notifications.</td>
+            <td><span class="api-tag">Check</span></td>
+          </tr>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/QuickBookmarkWheel.user.js" target="_blank" rel="noopener">Quick Bookmark Wheel</a></td>
+            <td>Displays bookmarks in a wheel layout for quick access.</td>
+            <td><span class="api-tag no">No</span></td>
+          </tr>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/Torn_Activity_Scanner_Company_Faction_FF_Stats.js" target="_blank" rel="noopener">Torn Activity Scanner</a></td>
+            <td>Looks up faction members and company activity, including last active status and FF scores.</td>
+            <td><span class="api-tag">Check</span></td>
+          </tr>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/Torn_Chat_Emoji_Simple%20Floating%20Pane-1.0.js" target="_blank" rel="noopener">Torn Chat Emoji</a></td>
+            <td>Adds a floating emoji panel to Torn chat.</td>
+            <td><span class="api-tag no">No</span></td>
+          </tr>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/Torn_Faction_Vault_%26_Armory_Manager-2.3.41.js" target="_blank" rel="noopener">Torn Faction Vault & Armory Manager 2.3.41</a></td>
+            <td>Faction vault, armory, and faction management tools.</td>
+            <td><span class="api-tag">Check</span></td>
+          </tr>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/Torn_Fast_Slots-0.5.js" target="_blank" rel="noopener">Torn Fast Slots 0.5</a></td>
+            <td>Fast slot-machine interface for Torn Casino.</td>
+            <td><span class="api-tag">Check</span></td>
+          </tr>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/TORN_War_Helper.user.js" target="_blank" rel="noopener">Torn War Helper</a></td>
+            <td>War dashboard with an improved Ranked War overview.</td>
+            <td><span class="api-tag">Check</span></td>
+          </tr>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/Torn_War_Stuff_Enhanced-2.1.user.js" target="_blank" rel="noopener">Torn War Stuff Enhanced 2.1</a></td>
+            <td>Additional Torn war enhancements.</td>
+            <td><span class="api-tag">Check</span></td>
+          </tr>
+          <tr>
+            <td><a href="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/scripts/Wheel_Bookmark.js" target="_blank" rel="noopener">Wheel Bookmark</a></td>
+            <td>Bookmark wheel functionality.</td>
+            <td><span class="api-tag">Check</span></td>
+          </tr>
+          </tbody>
+        </table>
       </div>
     </section>
 

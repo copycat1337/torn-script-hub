@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Torn Faction Navbar Button
-// @namespace    https://ghostprotocol.cyou/
+// @namespace    http://torn.city/
 // @version      1.0
 // @description  Adds a "Faction" button to the Torn sidebar that opens a navbar with links to H.O.F, Dash, Game and Scrips.
-// @author       You
+// @author       c0pyc4t 4039125
 // @match        https://www.torn.com/*
 // @grant        none
 // @run-at       document-idle
