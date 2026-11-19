@@ -1,22 +1,28 @@
 // ==UserScript==
 // @name         Quick Bookmark Wheel
 // @namespace    quick-bookmark-wheel
-// @author       c0pyc4t 4039125
-// @version      1.2.0
 // @match        https://www.torn.com/*
 // @exclude      https://www.torn.com/*
+// @version      1.3.0
 // @description  Spin a wheel of your bookmarks on any site. Ctrl+Shift or right-edge swipe to open. All items editable.
 // @match        *://*/*
 // @run-at       document-idle
 // @noframes
-// @grant        none
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_deleteValue
+// @grant        GM_addValueChangeListener
+// @grant        unsafeWindow
 // @license      MIT
 // ==/UserScript==
 
 (function () {
   'use strict';
-  if (window.__qbWheel) return;
-  window.__qbWheel = true;
+  // With @grant GM_setValue, `window` is the userscript sandbox. Use the page
+  // window for the init guard so the script isn't re-injected on the same page.
+  const pageWin = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
+  if (pageWin.__qbWheel) return;
+  pageWin.__qbWheel = true;
 
   // ---------- config ----------
   const BM_KEY = 'qbWheel_bookmarks_v1';
@@ -49,6 +55,36 @@
   const MAX_VEL = 0.08;
   const mod = (a, b) => ((a % b) + b) % b;
   const haptic = ms => { if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (_) {} } };
+
+  // ---------- storage helpers ----------
+  // Use the userscript manager's GM storage when available so bookmarks persist
+  // across ALL sites (not just one origin). Falls back to localStorage when GM
+  // APIs aren't present. This is what stops deleted bookmarks from "coming back"
+  // when you visit a different site.
+  const useGM = typeof GM_getValue === 'function' && typeof GM_setValue === 'function';
+  function storeGet(key, defaultVal) {
+    if (useGM) {
+      try {
+        const v = GM_getValue(key, undefined);
+        if (v === undefined || v === null) return defaultVal;
+        return typeof v === 'string' ? JSON.parse(v) : v;
+      } catch (_) { return defaultVal; }
+    }
+    try {
+      const s = localStorage.getItem(key);
+      return s === null ? defaultVal : JSON.parse(s);
+    } catch (_) { return defaultVal; }
+  }
+  function storeSet(key, val) {
+    if (useGM) {
+      try { GM_setValue(key, JSON.stringify(val)); return true; } catch (_) { return false; }
+    }
+    try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch (_) { return false; }
+  }
+  function storeRemove(key) {
+    if (useGM) { try { GM_deleteValue(key); return; } catch (_) {} }
+    try { localStorage.removeItem(key); } catch (_) {}
+  }
 
   // ---------- default bookmarks ----------
   const DEFAULT_BM = [
@@ -164,23 +200,25 @@
   };
   function svg(inner) { return `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${inner}</svg>`; }
 
-  // deterministic colour from a label, so the same bookmark always gets the same colour
+  // deterministic colour from a label, so the same bookmark always gets the same colour.
+  // Returns the INDEX into ICON_COLORS so we can emit a stable class name (qb-cN)
+  // instead of an inline style="color:..." — that keeps the script CSP-clean.
   const ICON_COLORS = ['#e04040', '#40a0e0', '#e0a040', '#40c060', '#a060e0', '#e060a0', '#60c0c0', '#e0c040', '#c06040', '#4060c0'];
   function colorForLabel(label) {
     let hash = 0;
     for (let i = 0; i < label.length; i++) hash = (hash * 31 + label.charCodeAt(i)) | 0;
-    return ICON_COLORS[Math.abs(hash) % ICON_COLORS.length];
+    return Math.abs(hash) % ICON_COLORS.length;
   }
 
   // favicon-based icon for a bookmark, with a coloured-letter fallback always visible behind it.
   // If the favicon loads it covers the letter; if it fails (onerror) the img is removed and the
-  // letter shows through.
+  // letter shows through. The letter colour is set by a CSS class (qb-cN) — no inline style.
   function bookmarkIcon(item) {
     if (item.isSettings) return svg(ICONS.gear);
     if (item.iconSvg) return item.iconSvg;
     const letter = ((item.label || '?')[0] || '?').toUpperCase();
-    const color = colorForLabel(item.label || '?');
-    const fallback = `<span class="qb-letter" style="color:${color}">${letter}</span>`;
+    const ci = colorForLabel(item.label || '?');
+    const fallback = `<span class="qb-letter qb-c${ci}">${letter}</span>`;
     try {
       const u = new URL(item.url);
       return fallback + `<img src="https://www.google.com/s2/favicons?domain=${u.hostname}&sz=64" alt="" onerror="this.remove()">`;
@@ -193,8 +231,8 @@
   function bookmarkIconSmall(item) {
     if (item.isSettings) return svg(ICONS.gear);
     const letter = ((item.label || '?')[0] || '?').toUpperCase();
-    const color = colorForLabel(item.label || '?');
-    const fallback = `<span class="qb-letter" style="color:${color}">${letter}</span>`;
+    const ci = colorForLabel(item.label || '?');
+    const fallback = `<span class="qb-letter qb-c${ci}">${letter}</span>`;
     try {
       const u = new URL(item.url);
       return fallback + `<img src="https://www.google.com/s2/favicons?domain=${u.hostname}&sz=64" alt="" onerror="this.remove()">`;
@@ -204,13 +242,38 @@
   }
 
   // ---------- state ----------
-  let bookmarks = [];
-  try {
-    const cached = JSON.parse(localStorage.getItem(BM_KEY) || 'null');
-    if (Array.isArray(cached)) bookmarks = cached;
-    else bookmarks = DEFAULT_BM.map(b => ({ ...b }));
-  } catch (_) { bookmarks = DEFAULT_BM.map(b => ({ ...b })); }
-  function saveBookmarks() { try { localStorage.setItem(BM_KEY, JSON.stringify(bookmarks)); } catch (_) {} }
+  // Load bookmarks from GM storage first (persists across all sites). If GM
+  // storage is empty, fall back to any existing localStorage data and migrate
+  // it into GM storage so future visits on any site see the same list. Only
+  // when neither has data do we seed the defaults. This is what stops the
+  // pre-written defaults from reappearing after you delete them on one site
+  // and then visit another.
+  let bookmarks = (function loadBookmarks() {
+    let stored = null;
+    if (useGM) {
+      try {
+        const v = GM_getValue(BM_KEY, undefined);
+        if (v !== undefined && v !== null) {
+          const parsed = (typeof v === 'string') ? JSON.parse(v) : v;
+          if (Array.isArray(parsed)) stored = parsed;
+        }
+      } catch (_) {}
+    }
+    if (stored === null) {
+      try {
+        const cached = JSON.parse(localStorage.getItem(BM_KEY) || 'null');
+        if (Array.isArray(cached)) stored = cached;
+        else stored = DEFAULT_BM.map(b => ({ ...b }));
+      } catch (_) { stored = DEFAULT_BM.map(b => ({ ...b })); }
+      // Migrate into GM storage so the same list shows up on every site.
+      if (useGM) {
+        try { GM_setValue(BM_KEY, JSON.stringify(stored)); } catch (_) {}
+        try { localStorage.removeItem(BM_KEY); } catch (_) {}
+      }
+    }
+    return stored;
+  })();
+  function saveBookmarks() { storeSet(BM_KEY, bookmarks); }
 
   // wheel items = Settings (fixed) + bookmarks
   function getItems() { return [SETTINGS_ITEM, ...bookmarks]; }
@@ -298,6 +361,22 @@
     }
     .qb-ico svg { width: 100%; height: 100%; display: block; }
     .qb-ico .qb-letter { font: 700 13px system-ui; display: flex; align-items: center; justify-content: center; }
+    /* Deterministic bookmark letter colours — class-based so no inline style (CSP-safe). */
+    .qb-letter.qb-c0 { color: #e04040; }
+    .qb-letter.qb-c1 { color: #40a0e0; }
+    .qb-letter.qb-c2 { color: #e0a040; }
+    .qb-letter.qb-c3 { color: #40c060; }
+    .qb-letter.qb-c4 { color: #a060e0; }
+    .qb-letter.qb-c5 { color: #e060a0; }
+    .qb-letter.qb-c6 { color: #60c0c0; }
+    .qb-letter.qb-c7 { color: #e0c040; }
+    .qb-letter.qb-c8 { color: #c06040; }
+    .qb-letter.qb-c9 { color: #4060c0; }
+    /* SVG gradient stops bound to theme CSS variables — no inline style (CSP-safe). */
+    #qb-g-on stop:nth-child(1) { stop-color: var(--qb-a1); }
+    #qb-g-on stop:nth-child(2) { stop-color: var(--qb-a2); }
+    #qb-pc-g-on stop:nth-child(1) { stop-color: var(--qb-a1); }
+    #qb-pc-g-on stop:nth-child(2) { stop-color: var(--qb-a2); }
     .qb-ico img { position: absolute; width: 22px; height: 22px; object-fit: contain; border-radius: 3px; }
     #qb-wheel.open .qb-ico {
       opacity: 1; transform: none;
@@ -372,6 +451,8 @@
     }
     .qb-bm-del:hover { color: #ff6060; background: rgba(255,80,80,.12); }
     .qb-bm-del svg { width: 14px; height: 14px; }
+    /* add-button top gap — replaces the previous inline style="margin-top:6px" */
+    #qb-bm-add { margin-top: 6px; }
     .qb-bm-settings { border-style: dashed; color: rgba(255,255,255,.6); }
 
     .qb-btn {
@@ -434,16 +515,27 @@
     }
     .qb-pk-input:focus { outline: none; border-color: var(--a2); }
     .qb-pk-input::placeholder { color: rgba(255,255,255,.35); }
-    .qb-pk-preview {
-      display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 10px;
+    .qb-pk-preview { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 10px;
       border-radius: 6px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1);
     }
+    .qb-pp-img { width: 20px; height: 20px; border-radius: 3px; object-fit: contain; }
     .qb-pk-preview .qb-pp-ico { width: 20px; height: 20px; flex: 0 0 20px; display: flex; align-items: center; justify-content: center; }
     .qb-pk-preview .qb-pp-ico img { width: 20px; height: 20px; border-radius: 3px; object-fit: contain; }
     .qb-pk-preview .qb-pp-letter { font: 700 12px system-ui; color: var(--a1); }
     .qb-pk-preview span { font: 500 12px system-ui; color: rgba(255,255,255,.7); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .qb-pk-row { display: flex; gap: 8px; margin-top: 14px; }
     .qb-pk-row .qb-btn { flex: 1; }
+    /* Hide-by-class helper — replaces inline style="display:none" for CSP safety. */
+    .qb-hidden { display: none !important; }
+    /* Theme swatches: per-theme CSS variables instead of inline style. */
+    .qb-tsw.qb-ts-green { --sw1: #c6f24a; --sw2: #8bc63f; }
+    .qb-tsw.qb-ts-blue { --sw1: #8ef6ff; --sw2: #1fb8ff; }
+    .qb-tsw.qb-ts-purple { --sw1: #e2b8ff; --sw2: #a855f7; }
+    .qb-tsw.qb-ts-pink { --sw1: #ffa8da; --sw2: #e0218a; }
+    .qb-tsw.qb-ts-orange { --sw1: #ffc996; --sw2: #ff8a1f; }
+    .qb-tsw.qb-ts-gold { --sw1: #ffe98f; --sw2: #f2b705; }
+    .qb-tsw.qb-ts-aqua { --sw1: #a3ffe8; --sw2: #19d3a6; }
+    .qb-tsw.qb-ts-silver { --sw1: #ffffff; --sw2: #c3cad3; }
 
     #qb-pbg { position: fixed; inset: 0; z-index: 2147483643; display: none; }
     #qb-pbg.show { display: block; }
@@ -465,6 +557,7 @@
     #qb-pc.open #qb-pc-dim { opacity: 1; }
     #qb-pc-wheel {
       position: absolute; left: 0; top: 0;
+      width: ${PC_SIZE}px; height: ${PC_SIZE}px;
       opacity: 0; transform: scale(.9);
       transition: opacity .12s ease, transform .2s var(--spring);
     }
@@ -569,8 +662,8 @@
           <stop offset="1" stop-color="#fff" stop-opacity=".04"/>
         </linearGradient>
         <linearGradient id="qb-g-on" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" style="stop-color:var(--qb-a1)" stop-opacity=".8"/>
-          <stop offset="1" style="stop-color:var(--qb-a2)" stop-opacity=".4"/>
+          <stop offset="0" stop-opacity=".8"/>
+          <stop offset="1" stop-opacity=".4"/>
         </linearGradient>
       </defs>
       <g id="qb-segs"></g>
@@ -590,7 +683,7 @@
     <div class="qb-pdesc">Long-press (mobile) or right-click (desktop) any wheel item to edit it.</div>
     <div class="qb-psec">Bookmarks</div>
     <div class="qb-bm-list" id="qb-bm-list"></div>
-    <button type="button" class="qb-btn primary" id="qb-bm-add" style="margin-top:6px">${svg(ICONS.plus)} Add bookmark</button>
+    <button type="button" class="qb-btn primary" id="qb-bm-add">${svg(ICONS.plus)} Add bookmark</button>
     <div class="qb-psec">Theme</div>
     <div class="qb-tgrid" id="qb-tgrid"></div>
     <div class="qb-psec">Animation</div>
@@ -607,14 +700,14 @@
     <input id="qb-pk-label" class="qb-pk-input" type="text" placeholder="My bookmark" autocomplete="off">
     <label class="qb-pk-lbl">URL</label>
     <input id="qb-pk-url" class="qb-pk-input" type="text" placeholder="https://example.com" autocomplete="off">
-    <div class="qb-pk-preview" id="qb-pk-preview" style="display:none">
+    <div class="qb-pk-preview qb-hidden" id="qb-pk-preview">
       <div class="qb-pp-ico" id="qb-pp-ico"></div>
       <span id="qb-pp-label"></span>
     </div>
     <div class="qb-pk-row">
-      <button type="button" class="qb-btn danger" id="qb-pk-remove" style="display:none">Remove</button>
+      <button type="button" class="qb-btn danger qb-hidden" id="qb-pk-remove">Remove</button>
       <button type="button" class="qb-btn" id="qb-pk-cancel">Cancel</button>
-      <button type="button" class="qb-btn" id="qb-pk-save-new" style="display:none">Save &amp; New</button>
+      <button type="button" class="qb-btn qb-hidden" id="qb-pk-save-new">Save &amp; New</button>
       <button type="button" class="qb-btn primary" id="qb-pk-save">Save &amp; Close</button>
     </div>`;
 
@@ -628,7 +721,7 @@
   pcRoot.id = 'qb-pc';
   pcRoot.innerHTML = `
     <div id="qb-pc-dim"></div>
-    <div id="qb-pc-wheel" style="width:${PC_SIZE}px;height:${PC_SIZE}px">
+    <div id="qb-pc-wheel">
       <svg viewBox="0 0 ${PC_SIZE} ${PC_SIZE}" width="${PC_SIZE}" height="${PC_SIZE}">
         <defs>
           <linearGradient id="qb-pc-g-off" x1="0" y1="0" x2="1" y2="1">
@@ -636,8 +729,8 @@
             <stop offset="1" stop-color="#fff" stop-opacity=".04"/>
           </linearGradient>
           <linearGradient id="qb-pc-g-on" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" style="stop-color:var(--qb-a1)" stop-opacity=".8"/>
-            <stop offset="1" style="stop-color:var(--qb-a2)" stop-opacity=".4"/>
+            <stop offset="0" stop-opacity=".8"/>
+            <stop offset="1" stop-opacity=".4"/>
           </linearGradient>
         </defs>
         <circle class="qb-pc-back" cx="${PC_C}" cy="${PC_C}" r="${PC_R_OUT + 3}"/>
@@ -1113,7 +1206,7 @@
   function renderTheme() {
     tgrid.innerHTML = THEMES.map(t =>
       `<button type="button" data-theme="${t.id}" class="${t.id === themeId ? 'on' : ''}">` +
-      `<i class="qb-tsw" style="--sw1:${t.a1};--sw2:${t.a2}"></i>${t.name}</button>`).join('');
+      `<i class="qb-tsw qb-ts-${t.id}"></i>${t.name}</button>`).join('');
   }
   tgrid.addEventListener('click', e => {
     const b = e.target.closest('[data-theme]');
@@ -1147,14 +1240,14 @@
     if (url) {
       try {
         const u = new URL(url);
-        ppIco.innerHTML = `<img src="https://www.google.com/s2/favicons?domain=${u.hostname}&sz=64" alt="" style="width:20px;height:20px;border-radius:3px;object-fit:contain">`;
+        ppIco.innerHTML = `<img class="qb-pp-img" src="https://www.google.com/s2/favicons?domain=${u.hostname}&sz=64" alt="">`;
       } catch (_) {
         ppIco.innerHTML = `<span class="qb-pp-letter">${label[0].toUpperCase()}</span>`;
       }
     } else {
       ppIco.innerHTML = `<span class="qb-pp-letter">${label[0].toUpperCase()}</span>`;
     }
-    pkPreview.style.display = 'flex';
+    pkPreview.classList.remove('qb-hidden');
   }
 
   function openPicker(idx) {
@@ -1164,15 +1257,15 @@
       pkTitle.textContent = 'Edit bookmark';
       pkLabelInput.value = bookmarks[idx].label || '';
       pkUrlInput.value = bookmarks[idx].url || '';
-      pkRemoveBtn.style.display = '';
-      pkSaveNewBtn.style.display = 'none'; // no "save & new" when editing
+      pkRemoveBtn.classList.remove('qb-hidden');
+      pkSaveNewBtn.classList.add('qb-hidden'); // no "save & new" when editing
       pkSaveBtn.textContent = 'Save & Close';
     } else {
       pkTitle.textContent = 'Add bookmark';
       pkLabelInput.value = '';
       pkUrlInput.value = '';
-      pkRemoveBtn.style.display = 'none';
-      pkSaveNewBtn.style.display = ''; // show "save & new" when adding
+      pkRemoveBtn.classList.add('qb-hidden');
+      pkSaveNewBtn.classList.remove('qb-hidden'); // show "save & new" when adding
       pkSaveBtn.textContent = 'Save & Close';
     }
     updatePickerPreview();
@@ -1198,7 +1291,7 @@
     if (e.key === 'Enter') {
       e.preventDefault();
       // When adding, Enter = Save & New; when editing, Enter = Save & Close
-      if (editingIdx < 0) { if (saveBookmark()) { editingIdx = -1; pkTitle.textContent = 'Add another bookmark'; pkLabelInput.value = ''; pkUrlInput.value = ''; pkRemoveBtn.style.display = 'none'; updatePickerPreview(); pkLabelInput.focus(); } }
+      if (editingIdx < 0) { if (saveBookmark()) { editingIdx = -1; pkTitle.textContent = 'Add another bookmark'; pkLabelInput.value = ''; pkUrlInput.value = ''; pkRemoveBtn.classList.add('qb-hidden'); updatePickerPreview(); pkLabelInput.focus(); } }
       else { if (saveBookmark()) closePicker(); }
     }
   });
@@ -1240,7 +1333,7 @@
     pkTitle.textContent = 'Add another bookmark';
     pkLabelInput.value = '';
     pkUrlInput.value = '';
-    pkRemoveBtn.style.display = 'none';
+    pkRemoveBtn.classList.add('qb-hidden');
     updatePickerPreview();
     pkLabelInput.focus();
   });
@@ -1299,41 +1392,52 @@
     pcStep = pcCanSpin ? bmSpan / PC_VISIBLE : (pcN ? bmSpan / pcN : bmSpan);
     if (!pcCanSpin) pcRot = pcRotTarget = 0;
 
-    // bloom delay by angle
-    const bd = a => `--d:${Math.round(((a - 70 + 720) % 360) / 360 * 150)}ms`;
+    // Bloom delay per wedge — set via JS (setProperty on --d) so we don't need
+    // an inline style="--d:..." attribute. Programmatic style is CSP-safe.
+    const delayFor = a => Math.round(((a - 70 + 720) % 360) / 360 * 150) + 'ms';
     let g = '', ic = '';
 
     // Settings wedge at top
     const sA1 = PC_SETTINGS_CENTER - PC_SETTINGS_SPAN / 2 + PC_WGAP / 2;
     const sA2 = PC_SETTINGS_CENTER + PC_SETTINGS_SPAN / 2 - PC_WGAP / 2;
-    g += `<g class="qb-pcg settings" style="${bd(PC_SETTINGS_CENTER)}"><path class="qb-pcw" d="${pcArc(sA1, sA2)}"/></g>`;
-    const [sx, sy] = pcPolar(PC_R_MID, PC_SETTINGS_CENTER);
-    ic += `<div class="qb-pci settings" style="left:${sx.toFixed(1)}px;top:${sy.toFixed(1)}px;${bd(PC_SETTINGS_CENTER)}">${svg(ICONS.gear)}</div>`;
+    g += `<g class="qb-pcg settings"><path class="qb-pcw" d="${pcArc(sA1, sA2)}"/></g>`;
+    ic += `<div class="qb-pci settings">${svg(ICONS.gear)}</div>`;
 
     // bookmark wedges
     if (pcN > 0) {
       const d = pcArc(PC_BOOKMARK_START + PC_WGAP / 2, PC_BOOKMARK_START + pcStep - PC_WGAP / 2);
       for (let i = 0; i < pcN; i++) {
-        const a = PC_BOOKMARK_START + Math.min(i, PC_VISIBLE) * pcStep;
-        g += `<g class="qb-pcg" style="${bd(a)}"><path class="qb-pcw" d="${d}"/></g>`;
+        g += `<g class="qb-pcg"><path class="qb-pcw" d="${d}"/></g>`;
       }
       // bookmark icons
       for (let i = 0; i < pcN; i++) {
-        const a = PC_BOOKMARK_START + Math.min(i, PC_VISIBLE) * pcStep;
         // icons will be positioned in pcRenderLinks
-        ic += `<div class="qb-pci" style="${bd(a)}">${bookmarkIcon(bookmarks[i])}</div>`;
+        ic += `<div class="qb-pci">${bookmarkIcon(bookmarks[i])}</div>`;
       }
     }
 
     pcSegsG.innerHTML = g;
     pcIcons.innerHTML = ic;
 
-    // collect refs
+    // collect refs and apply bloom delays + settings icon position via JS (CSP-safe).
     const allGs = [...pcSegsG.children];
     const allIcs = [...pcIcons.querySelectorAll('.qb-pci')];
+
+    // Settings wedge + icon
+    const sd = delayFor(PC_SETTINGS_CENTER);
+    allGs[0].style.setProperty('--d', sd);
+    allIcs[0].style.setProperty('--d', sd);
+    const [sx, sy] = pcPolar(PC_R_MID, PC_SETTINGS_CENTER);
+    allIcs[0].style.left = sx.toFixed(1) + 'px';
+    allIcs[0].style.top = sy.toFixed(1) + 'px';
+
     pcSettingsEl = { g: allGs[0], ico: allIcs[0] };
     pcLinkEls = [];
     for (let i = 0; i < pcN; i++) {
+      const a = PC_BOOKMARK_START + Math.min(i, PC_VISIBLE) * pcStep;
+      const d = delayFor(a);
+      allGs[1 + i].style.setProperty('--d', d);
+      allIcs[1 + i].style.setProperty('--d', d);
       pcLinkEls.push({ g: allGs[1 + i], ico: allIcs[1 + i] });
     }
     pcRenderLinks();
@@ -1669,7 +1773,26 @@
   window.addEventListener('pagehide', haltSpin);
   window.addEventListener('pageshow', e => { if (e.persisted) haltSpin(); });
 
-  // ---------- storage sync (cross-tab) ----------
+  // ---------- storage sync (cross-tab / cross-site) ----------
+  // GM storage change listener — fires when bookmarks change on ANY site the
+  // userscript runs on (or another tab in the same browser). This is what
+  // keeps the wheel in sync everywhere when you delete a bookmark.
+  if (typeof GM_addValueChangeListener === 'function') {
+    try {
+      GM_addValueChangeListener(BM_KEY, (_key, _oldVal, newVal, remote) => {
+        if (!remote) return;
+        try {
+          const c = newVal ? (typeof newVal === 'string' ? JSON.parse(newVal) : newVal) : null;
+          if (Array.isArray(c)) {
+            bookmarks = c;
+            rebuild();
+            if (panel.classList.contains('show')) renderBmList();
+          }
+        } catch (_) {}
+      });
+    } catch (_) {}
+  }
+  // localStorage fallback (same-origin only) for environments without GM APIs.
   window.addEventListener('storage', e => {
     if (!e.key || e.key.indexOf('qbWheel_') !== 0) return;
     if (e.key === BM_KEY) {
