@@ -1,70 +1,59 @@
 // ==UserScript==
 // @name         CAT Dibs (Torn PDA)
 // @namespace    https://dibs.ghostprotocol.cyou/
-// @version      3.5.9-pda
-// @description  War-aware faction calling; release only after confirmed combat hospitalizations. Torn PDA friendly: dedicated Call column, on-screen API key entry, touch-optimised.
+// @version      3.7.0-pda
+// @description  War-aware faction calling; release only after confirmed combat hospitalizations. Torn PDA friendly with on-screen API key entry.
 // @author       c0pyc4t [4039125] & Gezkeni [4501153] (PDA port)
-// @match        https://www.torn.com/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
 // @grant        GM_getValue
-// @grant        GM_registerMenuCommand
-// @connect      dibs.ghostprotocol.cyou
-// @connect      api.torn.com
-// @run-at       document-idle
+// @run-at       document-end
 // ==/UserScript==
 
 (function () {
   "use strict";
 
+  // --- PDA 不认 @match，必须自己守门 ---
+  if (!/^https:\/\/(www\.)?torn\.com\//.test(location.href)) return;
+
   const SERVER = "https://dibs.ghostprotocol.cyou";
   const POLL_CALLS_MS = 3000;
   const POLL_STATUS_MS = 20000;
   const POLL_WAR_MS = 120000;
-  const DEBUG = true;
+  const DEBUG = false; // PDA 里别刷屏，需要调试时改 true
 
   const log = (...args) => { if (DEBUG) console.log("[CAT Dibs PDA]", ...args); };
-  const getKey = () => GM_getValue("catlite_key", "");
-  const getToken = () => GM_getValue("catlite_token", "");
-  const getFaction = () => GM_getValue("catlite_faction", "");
-  const getPlayer = () => GM_getValue("catlite_player_name", "");
-  const getPlayerId = () => GM_getValue("catlite_player_id", "");
+
+  // --- Storage shim：PDA 若没提供 GM_* 就退回 localStorage ---
+  const _hasGM = typeof GM_getValue === "function" && typeof GM_setValue === "function";
+  const _getVal = (k, d) => {
+    try { return _hasGM ? GM_getValue(k, d) : (localStorage.getItem(k) ?? d); }
+    catch { return d; }
+  };
+  const _setVal = (k, v) => {
+    try { _hasGM ? GM_setValue(k, v) : localStorage.setItem(k, v); }
+    catch (e) { console.warn("[CAT Dibs PDA] storage write failed:", k, e); }
+  };
+
+  const getKey = () => _getVal("catlite_key", "");
+  const getToken = () => _getVal("catlite_token", "");
+  const getFaction = () => _getVal("catlite_faction", "");
+  const getPlayer = () => _getVal("catlite_player_name", "");
+  const getPlayerId = () => _getVal("catlite_player_id", "");
 
   const setStorage = (token, playerName, playerId, factionId, key) => {
-    GM_setValue("catlite_token", token);
-    GM_setValue("catlite_player_name", playerName);
-    GM_setValue("catlite_player_id", String(playerId));
-    GM_setValue("catlite_faction", String(factionId));
-    GM_setValue("catlite_key", key);
+    _setVal("catlite_token", token);
+    _setVal("catlite_player_name", playerName);
+    _setVal("catlite_player_id", String(playerId));
+    _setVal("catlite_faction", String(factionId));
+    _setVal("catlite_key", key);
   };
 
   const wipeStorage = () => {
     for (const name of ["catlite_token", "catlite_player_name", "catlite_player_id", "catlite_faction", "catlite_key"])
-      GM_setValue(name, "");
+      _setVal(name, "");
     window.location.reload();
   };
-
-  /**
-   * Detect Torn PDA (Android/iOS WebView wrapper).
-   * Torn PDA advertises itself via a distinctive User-Agent substring.
-   * Used to tune touch targets and observer cadence.
-   */
-  const isPDA = (() => {
-    const ua = (typeof navigator !== "undefined" ? navigator.userAgent || "" : "");
-    return /Torn\s?PDA|TornPDA|PDA\/\d/i.test(ua) || (ua.includes("wv") && /Android/i.test(ua) && /Torn/i.test(document.referrer || ""));
-  })();
-
-  /**
-   * Detect Torn's actual dark mode.
-   * IMPORTANT: do NOT use [class*="dark"] or [class*="war"] — those substring
-   * selectors match unrelated Torn classes (e.g. war_overview) and force dark
-   * styling on the light theme. Only target real dark-mode root classes.
-   */
-  function isTornDarkMode() {
-    return !!(document.querySelector(
-      "html.dark-mode, body.dark-mode, body.dark-mode-lt, html[data-theme='dark'], body[data-theme='dark']"
-    ));
-  }
 
   function http(method, path, body, token) {
     return new Promise(resolve => {
@@ -111,7 +100,6 @@
       position:fixed;inset:0;z-index:2147483647;
       background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;
       font-family:Arial,sans-serif;
-      -webkit-tap-highlight-color:transparent;
     `;
 
     const box = document.createElement("div");
@@ -132,9 +120,8 @@
     input.spellcheck = false;
     input.style.cssText = `
       width:100%;box-sizing:border-box;padding:10px;border-radius:6px;
-      border:1px solid #555;background:#111;color:#eee;font-size:16px;
+      border:1px solid #555;background:#111;color:#eee;font-size:14px;
     `;
-    // font-size 16px prevents iOS zoom-on-focus inside PDA WebView
 
     const statusLine = document.createElement("div");
     statusLine.style.cssText = "margin-top:8px;font-size:12px;color:#f0ad4e;min-height:16px;";
@@ -146,19 +133,63 @@
     saveBtn.type = "button";
     saveBtn.textContent = "Save & Login";
     saveBtn.style.cssText = `
-      flex:1;padding:12px;border-radius:6px;border:1px solid #2a2a2a;cursor:pointer;
+      flex:1;padding:10px;border-radius:6px;border:1px solid #2a2a2a;cursor:pointer;
       font-weight:700;color:#fff;background:linear-gradient(180deg,#4a7a00,#2e4d00);
-      touch-action:manipulation;-webkit-tap-highlight-color:transparent;
     `;
 
     const cancelBtn = document.createElement("button");
     cancelBtn.type = "button";
     cancelBtn.textContent = "Cancel";
     cancelBtn.style.cssText = `
-      flex:1;padding:12px;border-radius:6px;border:1px solid #2a2a2a;cursor:pointer;
+      flex:1;padding:10px;border-radius:6px;border:1px solid #2a2a2a;cursor:pointer;
       font-weight:700;color:#eee;background:linear-gradient(180deg,#333,#1a1a1a);
-      touch-action:manipulation;-webkit-tap-highlight-color:transparent;
     `;
+
+    // ---- 用 overlay 内的按钮替代 GM_registerMenuCommand ----
+    const toolsRow = document.createElement("div");
+    toolsRow.style.cssText = "display:flex;gap:8px;margin-top:10px;";
+
+    const statusBtn = document.createElement("button");
+    statusBtn.type = "button";
+    statusBtn.textContent = "Status";
+    statusBtn.style.cssText = `
+      flex:1;padding:8px;border-radius:6px;border:1px solid #444;cursor:pointer;
+      font-weight:700;color:#ccc;background:#222;
+    `;
+    statusBtn.onclick = () => {
+      statusLine.style.color = "#9cf";
+      statusLine.textContent =
+        `Player: ${getPlayer() || "-"} | Faction: ${getFaction() || "-"} | ` +
+        `Token: ${getToken() ? "Active" : "Missing"} | ` +
+        `War: ${opponentFactionName ? opponentFactionName + " (" + opponentFactionId + ")" : "None"}`;
+    };
+
+    const wipeBtn = document.createElement("button");
+    wipeBtn.type = "button";
+    wipeBtn.textContent = "Disconnect";
+    wipeBtn.style.cssText = `
+      flex:1;padding:8px;border-radius:6px;border:1px solid #5a2a2a;cursor:pointer;
+      font-weight:700;color:#f88;background:#2a1414;
+    `;
+    // 两步确认，避免 PDA 上 confirm 弹窗不出现导致误操作
+    let wipeArmed = false;
+    let wipeTimer = null;
+    wipeBtn.onclick = () => {
+      if (!wipeArmed) {
+        wipeArmed = true;
+        wipeBtn.textContent = "Confirm?";
+        wipeBtn.style.background = "#5a1414";
+        wipeTimer = setTimeout(() => {
+          wipeArmed = false;
+          wipeBtn.textContent = "Disconnect";
+          wipeBtn.style.background = "#2a1414";
+        }, 3000);
+        return;
+      }
+      clearTimeout(wipeTimer);
+      wipeArmed = false;
+      wipeStorage();
+    };
 
     saveBtn.onclick = async () => {
       const key = input.value.trim();
@@ -186,16 +217,19 @@
 
     row.appendChild(saveBtn);
     row.appendChild(cancelBtn);
+    toolsRow.appendChild(statusBtn);
+    toolsRow.appendChild(wipeBtn);
     box.appendChild(title);
     box.appendChild(input);
     box.appendChild(statusLine);
     box.appendChild(row);
+    box.appendChild(toolsRow);
     overlayEl.appendChild(box);
     document.body.appendChild(overlayEl);
     setTimeout(() => input.focus(), 50);
   }
 
-  // Floating launcher button (only shown when not logged in)
+  // Floating launcher button
   let launcherEl = null;
   function updateLauncher() {
     const loggedIn = !!getToken();
@@ -206,33 +240,23 @@
       return;
     }
     if (launcherEl) return;
+    if (!document.body) return;
     launcherEl = document.createElement("button");
     launcherEl.id = "catlite-launcher";
     launcherEl.type = "button";
     launcherEl.textContent = "CAT";
     launcherEl.title = "Set Torn API Key for CAT Lite";
-    // 56px so it clears Android's 48dp minimum touch target inside PDA.
     launcherEl.style.cssText = `
       position:fixed;right:14px;bottom:80px;z-index:2147483646;
-      width:56px;height:56px;border-radius:50%;
+      width:52px;height:52px;border-radius:50%;
       border:1px solid #2a2a2a;cursor:pointer;
       font:700 13px Arial,sans-serif;color:#fff;
       background:linear-gradient(180deg,#4a7a00,#2e4d00);
       box-shadow:0 4px 14px #000;text-shadow:0 1px 0 #000;
-      touch-action:manipulation;-webkit-tap-highlight-color:transparent;
-      user-select:none;-webkit-user-select:none;
     `;
     launcherEl.onclick = showKeyOverlay;
     document.body.appendChild(launcherEl);
   }
-
-  GM_registerMenuCommand("1. Set Torn API Key", showKeyOverlay);
-  GM_registerMenuCommand("2. Disconnect / Wipe Account", () => {
-    if (confirm("Are you sure you want to clear your CAT login?")) wipeStorage();
-  });
-  GM_registerMenuCommand("3. Check Login Status", () => {
-    alert(`CAT Status:\nPlayer: ${getPlayer()}\nID: ${getPlayerId()}\nMy faction: ${getFaction()}\nWar opponent: ${opponentFactionName || "None detected"}${opponentFactionId ? " (" + opponentFactionId + ")" : ""}\nToken: ${getToken() ? "Active" : "Missing"}\nPDA: ${isPDA ? "Yes" : "No"}\nDark mode: ${isTornDarkMode() ? "Yes" : "No"}`);
-  });
 
   // ---- Core logic ----
   let calls = new Map();
@@ -252,75 +276,47 @@
     if (document.getElementById("catlite-styles")) return;
     const style = document.createElement("style");
     style.id = "catlite-styles";
-
-    // Touch sizing: bigger on PDA, comfortable on desktop.
-    // touch-action: manipulation kills the 300ms tap delay on mobile WebViews.
-    const btnHeight = isPDA ? "26px" : "22px";
-    const btnFont   = isPDA ? "bold 12px" : "bold 11px";
-    const btnMinW   = isPDA ? "58px" : "50px";
-    const colWidth  = isPDA ? "70px" : "60px";
-
     style.textContent = `
       .catlite-wrapper {
         display: inline-flex !important;
         align-items: center !important;
         justify-content: center !important;
-        line-height: 0 !important;
       }
-
       .catlite-btn {
         display: inline-flex !important;
         align-items: center !important;
         justify-content: center !important;
-        box-sizing: border-box !important;
         padding: 0 8px !important;
-        min-width: ${btnMinW} !important;
-        height: ${btnHeight} !important;
-        line-height: ${btnHeight} !important;
-        font: ${btnFont} Arial, sans-serif !important;
+        min-width: 50px !important;
+        height: 20px !important;
+        font: bold 11px Arial, sans-serif !important;
         cursor: pointer !important;
         border-radius: 3px !important;
-        border: 1px solid #5a5a5a !important;
-        /* Classic light theme: dark-grey button is far more legible on light
-           backgrounds than a near-white one. */
-        background: linear-gradient(180deg, #6a6a6a, #3a3a3a) !important;
-        color: #fff !important;
-        text-shadow: 0 1px 0 #000 !important;
+        border: 1px solid #222 !important;
+        background: linear-gradient(180deg, #fff, #e0e0e0) !important;
+        color: #333 !important;
+        text-shadow: 0 1px 0 #fff !important;
         white-space: nowrap !important;
         pointer-events: auto !important;
-        touch-action: manipulation !important;
-        -webkit-tap-highlight-color: transparent !important;
-        user-select: none !important;
-        -webkit-user-select: none !important;
-        box-shadow: 0 1px 0 rgba(0,0,0,0.3) !important;
-      }
-      .catlite-btn:hover:not(:disabled) {
-        filter: brightness(1.12) !important;
       }
 
-      /* Real Torn dark mode only — do NOT use [class*="dark"] or [class*="war"]
-         (they catch unrelated Torn classes and break the light theme). */
-      html.dark-mode .catlite-btn,
-      body.dark-mode .catlite-btn,
-      body.dark-mode-lt .catlite-btn,
-      html[data-theme="dark"] .catlite-btn,
-      body[data-theme="dark"] .catlite-btn {
+      body.dark-mode .catlite-btn, .dark-mode .catlite-btn, [class*="dark"] .catlite-btn, [class*="war"] .catlite-btn {
         border: 1px solid #111 !important;
-        background: linear-gradient(180deg, #4a4a4a, #222) !important;
-        color: #f0f0f0 !important;
+        background: linear-gradient(180deg, #444, #222) !important;
+        color: #eee !important;
         text-shadow: 0 1px 0 #000 !important;
       }
 
       .catlite-btn[data-mine="true"] {
         background: linear-gradient(180deg, #4a7a00, #2e4d00) !important;
         color: #fff !important;
-        border-color: #1c2f00 !important;
+        border-color: #111 !important;
         text-shadow: 0 1px 0 #000 !important;
       }
       .catlite-btn[data-other="true"] {
         background: linear-gradient(180deg, #7a2200, #4d1500) !important;
         color: #fff !important;
-        border-color: #2a0a00 !important;
+        border-color: #111 !important;
         text-shadow: 0 1px 0 #000 !important;
       }
       .catlite-btn:disabled {
@@ -328,63 +324,31 @@
         cursor: wait !important;
       }
 
-      /* Custom Call column (old/classic theme list layout) */
       .catlite-custom-td {
         vertical-align: middle !important;
         text-align: center !important;
         padding: 0 5px !important;
-        width: ${colWidth} !important;
-        min-width: ${colWidth} !important;
-        box-sizing: border-box !important;
-        /* Ensure the cell stays visible and doesn't get squashed by flex siblings */
-        flex: 0 0 ${colWidth} !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
+        width: 60px !important;
       }
       .catlite-custom-th {
-        width: ${colWidth} !important;
-        min-width: ${colWidth} !important;
-        flex: 0 0 ${colWidth} !important;
-        text-align: center !important;
-        box-sizing: border-box !important;
-      }
-
-      /* On very narrow PDA viewports, shrink the column slightly so we don't
-         push the Attack button off-screen. */
-      @media (max-width: 480px) {
-        .catlite-custom-td, .catlite-custom-th {
-          width: 56px !important;
-          min-width: 56px !important;
-          flex: 0 0 56px !important;
-          padding: 0 3px !important;
-        }
-        .catlite-btn {
-          min-width: 52px !important;
-        }
+        width: 60px !important;
       }
     `;
     document.head.appendChild(style);
   }
 
   function paintAll() {
-    // 1. New Theme (Table Layout) - inject into the name cell, keep layout
-    const newThemeRows = document.querySelectorAll(
-      'tr[data-warhelper-user-id], tr.members-row, tr[data-user-id]'
-    );
+    const newThemeRows = document.querySelectorAll('tr[data-warhelper-user-id]');
     newThemeRows.forEach(tr => {
       const a = tr.querySelector('a[href*="XID="]');
       if (!a) return;
       const memberId = a.getAttribute("href")?.match(/XID=(\d+)/)?.[1];
       if (!memberId) return;
 
-      const targetContainer =
-        tr.querySelector('.__warhelper_war_overview_name-content') ||
-        tr.querySelector('td.__warhelper_war_overview_name') ||
-        tr.querySelector('.member-name, .name, td.name');
+      const targetContainer = tr.querySelector('.__warhelper_war_overview_name-content') || tr.querySelector('td.__warhelper_war_overview_name');
       if (!targetContainer) return;
 
-      let wrapper = targetContainer.querySelector(":scope > .catlite-wrapper");
+      let wrapper = targetContainer.querySelector(".catlite-wrapper");
       if (!wrapper) {
         wrapper = document.createElement("span");
         wrapper.className = "catlite-wrapper";
@@ -394,30 +358,14 @@
       injectButton(wrapper, memberId, a);
     });
 
-    // 2. Old Theme (List Layout) - inject a whole new column
-    const oldThemeRows = document.querySelectorAll(
-      'li.table-row, .table-body li, .members-list li, ul.members-list > li'
-    );
+    const oldThemeRows = document.querySelectorAll('li.table-row, .table-body li, .members-list li');
     if (oldThemeRows.length > 0) {
-      // Add Header Column if missing — try several known header containers
-      // (desktop classic + PDA mobile variants)
-      const headerCandidates = [
-        '.table-header',
-        '.members-list .table-header',
-        '.table-head',
-        'ul.table-header',
-        '.members-table-head',
-        '.content-scroll .table-header'
-      ];
-      for (const sel of headerCandidates) {
-        const headerRow = document.querySelector(sel);
-        if (headerRow && !headerRow.querySelector('.catlite-custom-th')) {
-          const th = document.createElement('div');
-          th.className = 'table-cell catlite-custom-th';
-          th.textContent = 'Call';
-          headerRow.appendChild(th);
-          break; // only inject into the first matching header
-        }
+      const headerRow = document.querySelector('.table-header, .members-list .table-header, .table-head');
+      if (headerRow && !headerRow.querySelector('.catlite-custom-th')) {
+        const th = document.createElement('div');
+        th.className = 'table-cell catlite-custom-th';
+        th.textContent = 'Call';
+        headerRow.appendChild(th);
       }
 
       oldThemeRows.forEach(li => {
@@ -426,27 +374,19 @@
         const memberId = a.getAttribute("href")?.match(/XID=(\d+)/)?.[1];
         if (!memberId) return;
 
-        // Skip if we already injected the cell
-        let targetCell = li.querySelector(':scope > .catlite-custom-td, .catlite-custom-td');
+        let targetCell = li.querySelector('.catlite-custom-td');
         if (!targetCell) {
           targetCell = document.createElement('div');
-          // Preserve Torn's table-cell class so it inherits the row's flex layout
           targetCell.className = 'table-cell catlite-custom-td';
-
-          // Append after the last existing cell so we don't displace Attack.
-          // On PDA the last child may be a status / action cell; appending
-          // after it keeps the new column on the right edge of the row.
-          const lastCell = li.querySelector('.table-cell:last-of-type') ||
-                           li.querySelector('.table-cell:last-child') ||
-                           li.lastElementChild;
-          if (lastCell && lastCell !== targetCell) {
+          const lastCell = li.querySelector('.table-cell:last-child') || li.lastElementChild;
+          if (lastCell) {
             lastCell.parentNode.insertBefore(targetCell, lastCell.nextSibling);
           } else {
             li.appendChild(targetCell);
           }
         }
 
-        let wrapper = targetCell.querySelector(":scope > .catlite-wrapper");
+        let wrapper = targetCell.querySelector(".catlite-wrapper");
         if (!wrapper) {
           wrapper = document.createElement("span");
           wrapper.className = "catlite-wrapper";
@@ -458,7 +398,6 @@
     }
   }
 
-  // Helper: button logic shared between themes
   function injectButton(wrapper, memberId, a) {
     let btn = wrapper.querySelector(".catlite-btn");
     if (!btn) {
@@ -506,7 +445,7 @@
                 eligibleCalls.add(String(res.data.data.id));
               }
             } else {
-              alert("Server Rejected:\n" + (res.data?.error || "Unknown"));
+              console.warn("[CAT Lite PDA] Server Rejected:", res.data?.error || "Unknown");
             }
           } finally {
             pendingTargets.delete(memberId);
@@ -516,7 +455,7 @@
       }
     } else {
       const callerName = String(call.callerName || "Unknown");
-      const displayName = callerName.length > 8 ? callerName.substring(0, 7) + "…" : callerName;
+      const displayName = callerName.length > 8 ? callerName.substring(0, 7) + "..." : callerName;
 
       if (btn.dataset.state !== displayName) {
         btn.dataset.state = displayName;
@@ -538,7 +477,6 @@
                 calls.delete(memberId);
               } else {
                 console.warn("[CAT Lite PDA] Manual cancel rejected:", res);
-                alert("Cancel failed: " + (res.data?.error || "Unknown"));
               }
             } finally {
               pendingTargets.delete(memberId);
@@ -554,13 +492,15 @@
 
   function startPaintObserver() {
     if (paintObserver) return;
-    // Debounce more aggressively on PDA to save battery and reduce jank.
-    const debounceMs = isPDA ? 450 : 300;
+    // 只盯 war overview 容器，避免整页 subtree 抖动
+    const target =
+      document.querySelector('.__warhelper_war_overview_name-content')?.closest('table, .members-list, .table-body') ||
+      document.body;
     paintObserver = new MutationObserver(() => {
       if (startPaintObserver._t) clearTimeout(startPaintObserver._t);
-      startPaintObserver._t = setTimeout(paintAll, debounceMs);
+      startPaintObserver._t = setTimeout(paintAll, 300);
     });
-    paintObserver.observe(document.body, { childList: true, subtree: true });
+    paintObserver.observe(target, { childList: true, subtree: true });
   }
 
   async function refreshCalls() {
@@ -741,6 +681,11 @@
   }
 
   function boot() {
+    // PDA 可能用 document-start 注入，此时 body 还不存在
+    if (!document.body) {
+      document.addEventListener("DOMContentLoaded", boot);
+      return;
+    }
     injectStyles();
     updateLauncher();
     setInterval(updateLauncher, 5000);

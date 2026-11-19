@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         CAT Dibs (Torn PDA)
 // @namespace    https://dibs.ghostprotocol.cyou/
-// @version      3.5.9-pda
+// @version      3.7.0-PC
 // @description  War-aware faction calling; release only after confirmed combat hospitalizations. Torn PDA friendly: dedicated Call column, on-screen API key entry, touch-optimised.
 // @author       c0pyc4t [4039125] & Gezkeni [4501153] (PDA port)
 // @match        https://www.torn.com/*
