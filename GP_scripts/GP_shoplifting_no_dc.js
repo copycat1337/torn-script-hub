@@ -1,22 +1,18 @@
 // ==UserScript==
 // @name         Torn Shoplifting Monitor
 // @namespace    http://tampermonkey.net/
-// @version      7.7 
-// @description  Monitors Shoplifting Security with Discord Notifications
-// @author       Deviyl[3722358] c0pyc4t [4039125]
+// @version      7.7
+// @description  Monitors Shoplifting Security
+// @author       c0pyc4t [4039125]
 // @match        https://www.torn.com/*
 // @icon         https://raw.githubusercontent.com/deviyl/media/refs/heads/main/icons/devicon.png
 // @grant        GM_addStyle
-// @grant        GM_xmlhttpRequest
 // @license      MIT
 // @downloadURL https://update.greasyfork.org/scripts/558351/Torn%20Shoplifting%20Monitor.user.js
 // @updateURL https://update.greasyfork.org/scripts/558351/Torn%20Shoplifting%20Monitor.meta.js
 // ==/UserScript==
 
-// API usage changed to 6 per min 1 API pulls all locations. <3
-// Removed All discord functions
-
-
+// Donations are always appreciated if you find this helpful. <3
 
 /* TORN API DISCLOSURE & USAGE:
     This script requires your Torn API key to retrieve authorized game data.
@@ -41,20 +37,13 @@
             VISUAL_DURATION: "tornShopliftingVisualDuration",
             AUDIBLE_VOLUME: "tornShopliftingAudibleVolume",
             BORDER_WIDTH: "tornShopliftingBorderWidth",
-            AUDIO_UNLOCKED: "tornShopliftingAudioUnlocked",
-            DISCORD_WEBHOOK: "tornShopliftingDiscordWebhook",
-            DISCORD_ID: "tornShopliftingDiscordId",
-            DISCORD_ID_TYPE: "tornShopliftingDiscordIdType",
-            DISCORD_ENABLED: "tornShopliftingDiscordEnabled",
-            DISCORD_PING_FREQUENCY: "tornShopliftingDiscordPingFrequency"
+            AUDIO_UNLOCKED: "tornShopliftingAudioUnlocked"
         },
         IDS: {
             WRAPPER: "tornShopliftIcon",
             MAIN_ICON: "tornShopliftMain",
             GEAR_ICON: "tornShopliftGear",
-            DISCORD_ICON: "tornShopliftDiscord",
             SETTINGS: "tornShopliftSettings",
-            DISCORD_SETTINGS: "tornShopliftDiscordSettings",
             ALERT: "tornShopliftAlert",
             TOOLTIP: "tornShopliftTooltip",
             OVERLAY: "tornShopliftOverlay"
@@ -71,7 +60,7 @@
         }
     };
 
-    const slAudio = new Audio("https://github.com/deviyl/media/raw/refs/heads/main/sounds/beep.mp3");
+    const slAudio = new Audio("https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/cam-bell-notification.mp3");
 
 
     // -------------------------
@@ -81,13 +70,10 @@
         lastAlertList: [],
         tooltipData: {},
         pollTimer: null,
-        discordPingTimer: null,
         previousState: {},
         isApiInvalid: false,
         isMonitoring: false,
-        settingsSnapshot: {},
-        discordSettingsSnapshot: {},
-        hasDiscordPingedCurrentAlert: false
+        settingsSnapshot: {}
     };
 
     // -------------------------
@@ -132,21 +118,6 @@
         return true;
     }
 
-    function validateDiscordSettings() {
-        const webhook = document.getElementById("sl_discord_webhook")?.value.trim();
-        const id = document.getElementById("sl_discord_id")?.value.trim();
-
-        let errors = [];
-        if (!webhook) errors.push("Discord Webhook URL is required.");
-        if (!id) errors.push("Discord ID/Role ID is required.");
-
-        if (errors.length > 0) {
-            showGenericPopup("Invalid Input", errors.join("<br>"), [{ text: "Close", cb: null }], "#ff6f6f");
-            return false;
-        }
-        return true;
-    }
-
     // -------------------------
     // Audio / Visual Setup
     // -------------------------
@@ -174,102 +145,6 @@
             }).catch(() => {});
         };
         window.addEventListener('click', enableAudio);
-    }
-
-    // -------------------------
-    // Discord Notification
-    // -------------------------
-    function sendDiscordNotification(alertList) {
-        const webhook = localStorage.getItem(CONSTANTS.KEYS.DISCORD_WEBHOOK);
-        const id = localStorage.getItem(CONSTANTS.KEYS.DISCORD_ID);
-        const idType = localStorage.getItem(CONSTANTS.KEYS.DISCORD_ID_TYPE) || "user";
-
-        if (!webhook || !id) return;
-
-        const mention = idType === "role" ? `<@&${id}>` : `<@${id}>`;
-
-        const alertsByShop = {};
-        alertList.forEach(alert => {
-            const match = alert.match(/• (.+?): (.+)/);
-            if (match) {
-                const shopName = match[1];
-                const securityMeasure = match[2];
-                if (!alertsByShop[shopName]) {
-                    alertsByShop[shopName] = [];
-                }
-                alertsByShop[shopName].push(securityMeasure);
-            }
-        });
-
-        const messageLines = [];
-        for (const [shopName, measures] of Object.entries(alertsByShop)) {
-            const measuresText = measures.join(" & ");
-            messageLines.push(`${measuresText} disabled at ${shopName}`);
-        }
-
-        const messageContent = messageLines.join(", ");
-        const message = {
-            content: `${mention} - ${messageContent}! [Shoplift](https://www.torn.com/page.php?sid=crimes#/shoplifting)`
-        };
-
-        GM_xmlhttpRequest({
-            method: 'POST',
-            url: webhook,
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            data: JSON.stringify(message),
-            onload: function(response) {
-            },
-            onerror: function() {
-                console.error("Failed to send Discord notification");
-            }
-        });
-    }
-
-    function sendTestDiscordNotification() {
-        const webhook = localStorage.getItem(CONSTANTS.KEYS.DISCORD_WEBHOOK);
-        const id = localStorage.getItem(CONSTANTS.KEYS.DISCORD_ID);
-        const idType = localStorage.getItem(CONSTANTS.KEYS.DISCORD_ID_TYPE) || "user";
-
-        if (!webhook || !id) return;
-
-        const mention = idType === "role" ? `<@&${id}>` : `<@${id}>`;
-        const message = {
-            content: `${mention} - Test Shoplift Ping`
-        };
-
-        const btn = document.getElementById("sl_discord_test_btn");
-        const originalText = btn?.textContent || "Test Ping";
-
-        GM_xmlhttpRequest({
-            method: 'POST',
-            url: webhook,
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            data: JSON.stringify(message),
-            onload: function(response) {
-                if (btn) {
-                    btn.textContent = "Test Ping Sent";
-                    btn.style.background = "#4CAF50";
-                    setTimeout(() => {
-                        btn.textContent = originalText;
-                        btn.style.background = "#7289DA";
-                    }, 5000);
-                }
-            },
-            onerror: function() {
-                if (btn) {
-                    btn.textContent = "Failed to Send";
-                    btn.style.background = "#ff6f6f";
-                    setTimeout(() => {
-                        btn.textContent = originalText;
-                        btn.style.background = "#7289DA";
-                    }, 5000);
-                }
-            }
-        });
     }
 
     // -------------------------
@@ -356,10 +231,8 @@
 
         #${CONSTANTS.IDS.TOOLTIP} { position: absolute; background:#222; color:#fff; padding:6px 10px; border-radius:4px; font-size:12px; z-index:999999; box-shadow: 0 2px 6px rgba(0,0,0,0.5); border: 1px solid #444; }
         #${CONSTANTS.IDS.SETTINGS} { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); background: #1a1a1a; color: #fff; padding:12px; border-radius:8px; border: 2px solid #333; z-index: 999998; width: 340px; max-width: 90vw; box-shadow: 0 4px 10px rgba(0,0,0,0.6); max-height: 80vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-        #${CONSTANTS.IDS.DISCORD_SETTINGS} { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); background: #1a1a1a; color: #fff; padding:12px; border-radius:8px; border: 2px solid #7289DA; z-index: 999999; width: 340px; max-width: 90vw; box-shadow: 0 4px 10px rgba(0,0,0,0.6); }
         #${CONSTANTS.IDS.ALERT} { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); background: #1a1a1a; color: #fff; padding:12px; border-radius:8px; border: 2px solid #444; z-index: 999999; width: 340px; max-width: 90vw; box-shadow: 0 4px 10px rgba(0,0,0,0.6); max-height: 80vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
         #${CONSTANTS.IDS.SETTINGS} input[type=text], #${CONSTANTS.IDS.SETTINGS} input[type=number] { width: 100%; padding: 6px; margin: 4px 0 10px 0; border-radius: 4px; border: 1px solid #555; background: #111; color: #fff; box-sizing: border-box; }
-        #${CONSTANTS.IDS.DISCORD_SETTINGS} input[type=text], #${CONSTANTS.IDS.DISCORD_SETTINGS} input[type=number] { width: 100%; padding: 6px; margin: 4px 0 10px 0; border-radius: 4px; border: 1px solid #555; background: #111; color: #fff; box-sizing: border-box; }
         #${CONSTANTS.IDS.OVERLAY} { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 2147483647; display: none; animation: flashBorder 1s infinite; }
         .sl_btn { flex:1; padding:6px; border:none; border-radius:4px; color:white; cursor:pointer; font-weight:bold; }
         .sl_close { position:absolute; top:8px; right:10px; font-size:16px; color:#999; cursor:pointer; }
@@ -403,150 +276,6 @@
     `);
 
     // -------------------------
-    // Discord Settings Popup
-    // -------------------------
-    function toggleDiscordSettingsPopup() {
-        let popup = document.getElementById(CONSTANTS.IDS.DISCORD_SETTINGS);
-        if (!popup) {
-            createDiscordSettingsPopup();
-        } else {
-            if (popup.style.display === "none") {
-                takeDiscordSettingsSnapshot();
-                popup.style.display = "block";
-            } else {
-                revertDiscordSettings();
-                popup.style.display = "none";
-            }
-        }
-    }
-
-    function takeDiscordSettingsSnapshot() {
-        state.discordSettingsSnapshot = {
-            webhook: localStorage.getItem(CONSTANTS.KEYS.DISCORD_WEBHOOK) || "",
-            id: localStorage.getItem(CONSTANTS.KEYS.DISCORD_ID) || "",
-            idType: localStorage.getItem(CONSTANTS.KEYS.DISCORD_ID_TYPE) || "user",
-            pingFrequency: localStorage.getItem(CONSTANTS.KEYS.DISCORD_PING_FREQUENCY) || "0"
-        };
-    }
-
-    function revertDiscordSettings() {
-        if (state.discordSettingsSnapshot.webhook === undefined) return;
-
-        const webhookEl = document.getElementById("sl_discord_webhook");
-        const idEl = document.getElementById("sl_discord_id");
-        const idTypeToggle = document.getElementById("sl_discord_id_type");
-        const idTypeLabel = document.getElementById("sl_discord_id_type_label");
-        const pingFreqEl = document.getElementById("sl_discord_ping_frequency");
-
-        if (webhookEl) webhookEl.value = state.discordSettingsSnapshot.webhook;
-        if (idEl) idEl.value = state.discordSettingsSnapshot.id;
-        if (pingFreqEl) pingFreqEl.value = state.discordSettingsSnapshot.pingFrequency;
-        if (idTypeToggle) {
-            const isRole = state.discordSettingsSnapshot.idType === "role";
-            idTypeToggle.checked = isRole;
-            if (idTypeLabel) {
-                idTypeLabel.textContent = isRole ? "ROLE" : "USER";
-                idTypeLabel.style.color = isRole ? "#2196F3" : "#888";
-            }
-        }
-    }
-
-    function createDiscordSettingsPopup() {
-        const popup = createEl("div", null, { id: CONSTANTS.IDS.DISCORD_SETTINGS });
-
-        takeDiscordSettingsSnapshot();
-
-        const webhook = localStorage.getItem(CONSTANTS.KEYS.DISCORD_WEBHOOK) || "";
-        const id = localStorage.getItem(CONSTANTS.KEYS.DISCORD_ID) || "";
-        const idType = localStorage.getItem(CONSTANTS.KEYS.DISCORD_ID_TYPE) || "user";
-        const pingFrequency = localStorage.getItem(CONSTANTS.KEYS.DISCORD_PING_FREQUENCY) || "0";
-        const isRole = idType === "role";
-
-        popup.innerHTML = `
-            <span id="sl_close_discord_settings" class="sl_close">✕</span>
-            <h3 style="margin-top:0; color:#7289DA;">Discord Settings</h3>
-            <label style="font-size:11px; color:#888;">Discord Webhook URL:</label>
-            <input id="sl_discord_webhook" type="text" placeholder="https://discord.com/api/webhooks/..." value="${webhook}">
-            <label style="font-size:11px; color:#888;">Discord ID / Role ID:</label>
-            <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
-                <input id="sl_discord_id" type="text" placeholder="123456789" value="${id}" style="flex:1;">
-                <div style="display:flex; align-items:center;">
-                    <span id="sl_discord_id_type_label" class="sl_switch_label" style="margin-right:6px;">${isRole ? 'ROLE' : 'USER'}</span>
-                    <label class="sl_switch">
-                        <input type="checkbox" id="sl_discord_id_type" ${isRole ? 'checked' : ''}>
-                        <span class="sl_slider"></span>
-                    </label>
-                </div>
-            </div>
-            <label style="font-size:11px; color:#888;">Ping Frequency (seconds, 0 = once per alert):</label>
-            <input id="sl_discord_ping_frequency" type="number" min="0" placeholder="0" value="${pingFrequency}" style="margin-bottom:10px;">
-            <div style="display:flex; gap:8px; margin-bottom:10px;">
-                <button id="sl_discord_test_btn" class="sl_btn" style="background:#7289DA; flex:1;">Test Ping</button>
-            </div>
-            <button id="sl_discord_save_btn" class="sl_btn" style="background:#4CAF50; width:100%">Save Settings</button>
-        `;
-
-        document.body.appendChild(popup);
-
-        document.getElementById("sl_discord_id_type").addEventListener("change", (e) => {
-            const label = document.getElementById("sl_discord_id_type_label");
-            const isRole = e.target.checked;
-            if (label) {
-                label.textContent = isRole ? "ROLE" : "USER";
-                label.style.color = isRole ? "#2196F3" : "#888";
-            }
-        });
-
-        document.getElementById("sl_discord_test_btn").onclick = () => {
-            const webhook = document.getElementById("sl_discord_webhook").value.trim();
-            const id = document.getElementById("sl_discord_id").value.trim();
-            const idType = document.getElementById("sl_discord_id_type").checked ? "role" : "user";
-
-            if (!webhook || !id) {
-                showGenericPopup("Missing Fields", "Webhook and ID are required for test.", [{ text: "Close", cb: null }], "#ff6f6f");
-                return;
-            }
-
-            localStorage.setItem(CONSTANTS.KEYS.DISCORD_WEBHOOK, webhook);
-            localStorage.setItem(CONSTANTS.KEYS.DISCORD_ID, id);
-            localStorage.setItem(CONSTANTS.KEYS.DISCORD_ID_TYPE, idType);
-
-            const prevWebhook = state.discordSettingsSnapshot.webhook;
-            const prevId = state.discordSettingsSnapshot.id;
-            const prevIdType = state.discordSettingsSnapshot.idType;
-
-            sendTestDiscordNotification();
-
-            setTimeout(() => {
-                localStorage.setItem(CONSTANTS.KEYS.DISCORD_WEBHOOK, prevWebhook);
-                localStorage.setItem(CONSTANTS.KEYS.DISCORD_ID, prevId);
-                localStorage.setItem(CONSTANTS.KEYS.DISCORD_ID_TYPE, prevIdType);
-            }, 6000);
-        };
-
-        document.getElementById("sl_discord_save_btn").onclick = () => {
-            if (!validateDiscordSettings()) return;
-
-            const webhook = document.getElementById("sl_discord_webhook").value.trim();
-            const id = document.getElementById("sl_discord_id").value.trim();
-            const idType = document.getElementById("sl_discord_id_type").checked ? "role" : "user";
-            const pingFrequency = document.getElementById("sl_discord_ping_frequency").value;
-
-            localStorage.setItem(CONSTANTS.KEYS.DISCORD_WEBHOOK, webhook);
-            localStorage.setItem(CONSTANTS.KEYS.DISCORD_ID, id);
-            localStorage.setItem(CONSTANTS.KEYS.DISCORD_ID_TYPE, idType);
-            localStorage.setItem(CONSTANTS.KEYS.DISCORD_PING_FREQUENCY, pingFrequency);
-
-            popup.style.display = "none";
-        };
-
-        document.getElementById("sl_close_discord_settings").onclick = () => {
-            revertDiscordSettings();
-            popup.style.display = "none";
-        };
-    }
-
-    // -------------------------
     // Settings Popup
     // -------------------------
     function toggleSettingsPopup() {
@@ -567,7 +296,7 @@
     function takeSettingsSnapshot() {
         state.settingsSnapshot = {
             api: localStorage.getItem(CONSTANTS.KEYS.API) || "",
-            poll: localStorage.getItem(CONSTANTS.KEYS.POLL_INTERVAL) || 10,
+            poll: localStorage.getItem(CONSTANTS.KEYS.POLL_INTERVAL) || 5,
             audible: localStorage.getItem(CONSTANTS.KEYS.AUDIBLE) === "true",
             visual: localStorage.getItem(CONSTANTS.KEYS.VISUAL) === "true",
             vol: getStorageNum(CONSTANTS.KEYS.AUDIBLE_VOLUME, 0.005, 0, 1000),
@@ -673,10 +402,7 @@
         popup.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; margin-right:-8px; padding-right:8px;">
                 <h3 style="margin:0;">Shoplifting Settings</h3>
-                <div style="display:flex; gap:12px; align-items:center;">
-                    <img id="sl_open_discord_settings" src="https://www.google.com/s2/favicons?sz=64&domain=discord.com" style="width:20px; height:20px; cursor:pointer; flex-shrink:0;" title="Discord Settings" />
-                    <span id="sl_close_settings" style="font-size:16px; color:#999; cursor:pointer; flex-shrink:0; margin:0; padding:0;">✕</span>
-                </div>
+                <span id="sl_close_settings" style="font-size:16px; color:#999; cursor:pointer; flex-shrink:0; margin:0; padding:0;">✕</span>
             </div>
             <div style="display:flex; align-items:center;">
                 <label style="width:50%"> Public API Key:</label>
@@ -753,7 +479,7 @@
         });
 
         document.getElementById("sl_api_key").value = localStorage.getItem(CONSTANTS.KEYS.API) || "";
-        document.getElementById("sl_poll_interval").value = localStorage.getItem(CONSTANTS.KEYS.POLL_INTERVAL) || 10;
+        document.getElementById("sl_poll_interval").value = localStorage.getItem(CONSTANTS.KEYS.POLL_INTERVAL) || 5;
         document.getElementById("sl_audible_cb").checked = localStorage.getItem(CONSTANTS.KEYS.AUDIBLE) === "true";
         document.getElementById("sl_visual_cb").checked = localStorage.getItem(CONSTANTS.KEYS.VISUAL) === "true";
         document.getElementById("sl_audible_volume").value = Math.round(getStorageNum(CONSTANTS.KEYS.AUDIBLE_VOLUME, 0.005, 0, 1000) * 1000);
@@ -761,11 +487,6 @@
         document.getElementById("sl_border_width").value = getStorageNum(CONSTANTS.KEYS.BORDER_WIDTH, 5, 5, 50);
         document.getElementById("sl_save_btn").onclick = saveSettings;
         document.getElementById("sl_test_btn").onclick = runAlertTest;
-        document.getElementById("sl_open_discord_settings").onclick = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleDiscordSettingsPopup();
-        };
         document.getElementById("sl_close_settings").onclick = () => {
             revertSettings();
             popup.style.display = "none";
@@ -885,9 +606,6 @@
         if (localStorage.getItem(CONSTANTS.KEYS.VISUAL) === "true") {
             startVisualAlarm();
         }
-        if (localStorage.getItem(CONSTANTS.KEYS.DISCORD_WEBHOOK) && localStorage.getItem(CONSTANTS.KEYS.DISCORD_ID)) {
-            state.hasDiscordPingedCurrentAlert = false;
-        }
     }
 
     function startVisualAlarm(customDuration) {
@@ -982,32 +700,8 @@
             if (!state.isMonitoring) return;
             await checkShops(force);
             force = false;
-            const interval = getStorageNum(CONSTANTS.KEYS.POLL_INTERVAL, 10, 5);
+            const interval = getStorageNum(CONSTANTS.KEYS.POLL_INTERVAL, 5, 5);
             state.pollTimer = setTimeout(loop, interval * 1000);
-        };
-        loop();
-    }
-
-    function startDiscordPingLoop() {
-        if (state.discordPingTimer) clearTimeout(state.discordPingTimer);
-        const loop = () => {
-            if (!state.lastAlertList.length || !localStorage.getItem(CONSTANTS.KEYS.DISCORD_WEBHOOK) || !localStorage.getItem(CONSTANTS.KEYS.DISCORD_ID)) {
-                state.discordPingTimer = setTimeout(loop, 1000);
-                return;
-            }
-
-            const pingFrequency = parseInt(localStorage.getItem(CONSTANTS.KEYS.DISCORD_PING_FREQUENCY) || "0");
-
-            if (pingFrequency === 0) {
-                if (!state.hasDiscordPingedCurrentAlert) {
-                    sendDiscordNotification(state.lastAlertList);
-                    state.hasDiscordPingedCurrentAlert = true;
-                }
-                state.discordPingTimer = setTimeout(loop, 1000);
-            } else {
-                sendDiscordNotification(state.lastAlertList);
-                state.discordPingTimer = setTimeout(loop, pingFrequency * 1000);
-            }
         };
         loop();
     }
@@ -1020,7 +714,6 @@
     unlockAudio();
     injectSidebarIcon();
     startMonitoring(true);
-    startDiscordPingLoop();
     setInterval(injectSidebarIcon, 3000);
 
 })();

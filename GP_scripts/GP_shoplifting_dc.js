@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      7.6
 // @description  Monitors Shoplifting Security with Discord Notifications
-// @author       Deviyl[3722358]
+// @author       c0pyc4t [4039125]
 // @match        https://www.torn.com/*
 // @icon         https://raw.githubusercontent.com/deviyl/media/refs/heads/main/icons/devicon.png
 // @grant        GM_addStyle
@@ -68,7 +68,7 @@
         }
     };
 
-    const slAudio = new Audio("https://github.com/deviyl/media/raw/refs/heads/main/sounds/beep.mp3");
+    const slAudio = new Audio("https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/cam-bell-notification.mp3");
 
 
     // -------------------------

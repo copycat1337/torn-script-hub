@@ -3,6 +3,8 @@
 // @namespace    quick-bookmark-wheel
 // @author       c0pyc4t 4039125
 // @version      1.2.0
+// @match        https://www.torn.com/*
+// @exclude      https://www.torn.com/*
 // @description  Spin a wheel of your bookmarks on any site. Ctrl+Shift or right-edge swipe to open. All items editable.
 // @match        *://*/*
 // @run-at       document-idle
