@@ -2,6 +2,12 @@
 
 A collection of custom userscripts for Torn City. Tools designed to improve gameplay, simplify faction management, provide useful statistics, and enhance the Torn interface.
 
+<h2 align="center">Demo</h2>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/copycat1337/torn-script-hub/main/gif/demo.gif" alt="Script Demo" width="800">
+</p>
+
 ## 📜 Script Directory
 
 Browse the collection and click any script to view its source code and install it.
