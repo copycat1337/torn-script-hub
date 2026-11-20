@@ -5,8 +5,6 @@
 // @description  Extra chat rooms in Torn's chat: invite players and whole factions, war rooms, public topic rooms. Buttons are docked into Torn's native chat bar (after the People button).
 // @author       Manuel [3747263]
 // @license      MIT
-// @homepageURL  https://github.com/manuelcecchetto/torn-rooms
-// @supportURL   https://github.com/manuelcecchetto/torn-rooms/issues
 // @match        https://www.torn.com/*
 // @run-at       document-idle
 // @grant        GM_xmlhttpRequest
