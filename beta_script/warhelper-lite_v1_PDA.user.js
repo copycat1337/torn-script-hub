@@ -1,21 +1,21 @@
 // ==UserScript==
-// @name        TORN War Helper (Lite + FFScouter)
-// @namespace   finally.torn.warhelper.lite
-// @version     20261121.2
-// @description War Overview dashboard, quick-attack button, favorite-member pinning, dark-mode-aware overlays, FFScouter FF stat spies, and FFScouter premium flight-time tracker. Stripped rebuild: no TornStats/BSP/YATA, no Seintz server features (Dibs, stored loadouts).
-// @author      finally [2060206] et al. - lite rebuild
-// @license     GNU GPLv3
-// @run-at      document-start
-// @match       https://www.torn.com/factions.php*
-// @match       https://www.torn.com/war.php?step=rankreport*
-// @grant       GM_xmlhttpRequest
-// @grant       GM_addStyle
-// @grant       GM_getValue
-// @grant       GM_setValue
-// @grant       unsafeWindow
-// @connect     api.torn.com
-// @connect     ffscouter.com
-// @connect     nstorn.gitlab.io
+// @name         TORN War Helper (Lite + FFScouter)
+// @namespace    finally.torn.warhelper.lite
+// @version      20261121.3
+// @description  War Overview dashboard, quick-attack button, favorite-member pinning, dark-mode-aware overlays, FFScouter FF stat spies, and premium flight-time tracker.
+// @author       c0pyc4t
+// @license      GPL-3.0
+// @run-at       document-start
+// @match        https://www.torn.com/factions.php*
+// @match        https://www.torn.com/war.php*
+// @grant        GM_xmlhttpRequest
+// @grant        GM_addStyle
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        unsafeWindow
+// @connect      api.torn.com
+// @connect      ffscouter.com
+// @connect      nstorn.gitlab.io
 // ==/UserScript==
 
 
@@ -3513,6 +3513,28 @@ body.dark-mode .__warhelper_attack_btn:hover {
   color: #fff;
 }
 
+
+/* Member username is clickable to open the attack page. */
+.member${OUTSIDE_TERRITORY} .__warhelper_favorite + a[href*="XID"],
+.member${OUTSIDE_TERRITORY} a[href*="profiles.php?XID="] {
+  cursor: crosshair;
+}
+
+.member${OUTSIDE_TERRITORY} a[href*="profiles.php?XID="]:hover {
+  text-decoration: underline;
+  color: var(--default-red-color, #d44a4a) !important;
+}
+
+/* War overview member name is clickable to open the attack page. */
+.__warhelper_war_overview_name a[href] {
+  cursor: crosshair;
+}
+
+.__warhelper_war_overview_name a[href]:hover {
+  text-decoration: underline;
+  color: var(--default-red-color, #d44a4a) !important;
+}
+
 .__warhelper_bs_loading {
   width: 100%;
   height: 100%;
@@ -3902,6 +3924,16 @@ body.dark-mode .__warhelper_attack_btn:hover {
               attackButton.innerHTML = '<span class="__warhelper_attack_btn_icon" aria-hidden="true">\u2694\uFE0E</span>';
               statusNode.parentNode.appendChild(attackButton);
               this.bindAttackButton(attackButton, userId);
+            }
+            // Make the member's username open the attack page in a new tab.
+            const profileLink = rowNode.querySelector('a[href*="profiles.php?XID="], a[href*="XID="]');
+            if (profileLink instanceof HTMLAnchorElement && profileLink.dataset["warhelperAttackBound"] !== "true") {
+              profileLink.dataset["warhelperAttackBound"] = "true";
+              profileLink.title = `Attack ${profileLink.title || ""}`.trim();
+              profileLink.addEventListener("click", (event) => {
+                event.preventDefault();
+                this.openAttackPage(userId);
+              });
             }
           });
           this.updateBattleStats();
@@ -14115,6 +14147,27 @@ body.dark-mode .${OVERVIEW_CLASS}_score {
               actions: this.actions
             }
           });
+          // Make member names in the war overview open the attack page in a new tab.
+          if (!overview.dataset["warhelperNameAttackBound"]) {
+            overview.dataset["warhelperNameAttackBound"] = "true";
+            overview.addEventListener("click", (event) => {
+              const nameCell = event.target.closest(".__warhelper_war_overview_name");
+              if (!nameCell) {
+                return;
+              }
+              const link = nameCell.querySelector("a[href]");
+              if (!link) {
+                return;
+              }
+              const row = nameCell.closest("tr[data-warhelper-user-id]");
+              const userId = Number(row?.dataset["warhelperUserId"]);
+              if (!userId) {
+                return;
+              }
+              event.preventDefault();
+              this.openAttackPage(userId);
+            });
+          }
           this.observeLifecycle(parent, original, overview, component);
           this.updateOriginalVisibility();
           this.scheduleMountedUpdates();

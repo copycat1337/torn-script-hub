@@ -1,21 +1,21 @@
 // ==UserScript==
-// @name        TORN War Helper beta (Lite + FFScouter)
-// @namespace   finally.torn.warhelper.lite
-// @version     20261121.2
-// @description War Overview dashboard, quick-attack button, favorite-member pinning, dark-mode-aware overlays, FFScouter FF stat spies, and FFScouter premium flight-time tracker. Stripped rebuild: no TornStats/BSP/YATA, no Seintz server features (Dibs, stored loadouts).
-// @author      finally [2060206] et al. - lite rebuild
-// @license     GNU GPLv3
-// @run-at      document-start
-// @match       https://www.torn.com/factions.php*
-// @match       https://www.torn.com/war.php?step=rankreport*
-// @grant       GM_xmlhttpRequest
-// @grant       GM_addStyle
-// @grant       GM_getValue
-// @grant       GM_setValue
-// @grant       unsafeWindow
-// @connect     api.torn.com
-// @connect     ffscouter.com
-// @connect     nstorn.gitlab.io
+// @name         TORN War Helper (Lite + FFScouter)
+// @namespace    finally.torn.warhelper.lite
+// @version      20261121.3
+// @description  War Overview dashboard, quick-attack button, favorite-member pinning, dark-mode-aware overlays, FFScouter FF stat spies, and premium flight-time tracker.
+// @author       c0pyc4t
+// @license      GPL-3.0
+// @run-at       document-start
+// @match        https://www.torn.com/factions.php*
+// @match        https://www.torn.com/war.php*
+// @grant        GM_xmlhttpRequest
+// @grant        GM_addStyle
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        unsafeWindow
+// @connect      api.torn.com
+// @connect      ffscouter.com
+// @connect      nstorn.gitlab.io
 // ==/UserScript==
 
 
